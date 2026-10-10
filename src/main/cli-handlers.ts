@@ -168,11 +168,12 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
 
   /** Remembers that an agent created this session, and from which session when the caller runs in one. */
   const markCreatedByAgent = (sessionID: string, caller: CallerContext) => {
+    if (!caller.agent) return
     let by: string | null = null
     try {
       by = selfID(caller)
     } catch {}
-    store.setCreatedByAgent(sessionID, by)
+    store.setCreatedByAgent(sessionID, caller.agent, by)
     host.changed()
   }
 

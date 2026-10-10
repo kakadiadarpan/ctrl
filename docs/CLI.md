@@ -74,11 +74,13 @@ ctrl help [<noun> [<verb>]] [--json]
 |---|---|---|
 | `CTRL_TERM_ID` | ctrl, in each fx pty | resolves `self` in fx sessions (follows `/new`, `/resume`) |
 | `OPENCODE_SESSION_ID` | opencode, in its tool shells | resolves `self` in opencode sessions |
+| `AI_AGENT` | opencode (`opencode`), or you | marks the caller as an agent, by name. Also read: `CLAUDECODE` (claude-code), `CURSOR_AGENT` (cursor), `CTRL_TERM_ID` (fx), `AGENT=1` |
 | `CTRL_SESSION_ID` | you | overrides `self` |
 | `CTRL_SOCKET` | ctrl, in the terminals it runs | socket to talk to; defaults to the installed app's |
 
-ctrl strips inherited `OPENCODE_SESSION_ID` / `CTRL_*` variables from the terminals it spawns, so `self` never
-points at whatever launched ctrl.
+ctrl strips inherited `OPENCODE_SESSION_ID` / `CTRL_*` and agent variables from the terminals it spawns, so
+`self` and the agent never come from whatever launched ctrl. The ctrl skill's `ctrl.sh` sets `AI_AGENT=agent`
+when nothing else marked the caller: only agents run skills.
 
 ## Identifiers and selectors
 
@@ -127,9 +129,11 @@ Wherever a command takes a session or a space, it also takes a selector:
 
 ## Behavior worth knowing
 
-- **Agent-created sessions are marked:** `session new` records `createdByAgent: {by, at}` in `state.json`,
-  with `by` set to the caller's own session (`self`) when it runs in one. The sidebar shows a bot icon on
-  those rows, and every `Session` returns the field (`null` for sessions you made yourself).
+- **Agent-created sessions are marked:** when an agent runs `session new` (see `AI_AGENT` in
+  [Environment](#environment)), ctrl records `createdByAgent: {agent, by, at}` in `state.json`, with `by` set
+  to the agent's own session (`self`) when it runs in one. The sidebar shows a bot icon on those rows, and
+  every `Session` returns the field. Sessions you make yourself, in the UI or by running `ctrl` in your own
+  shell, get `null`.
 - **Sending and waiting:** `session send` and `session new --prompt` return once the turn has started, so
   `send` followed by `session wait --for done` can't see the idle state from before the prompt.
 - **Typing vs sending:** `--submit` (and `session send`) sends through the opencode service, which works in

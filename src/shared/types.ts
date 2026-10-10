@@ -74,6 +74,8 @@ export const STATUS_RANK: Record<SessionStatus, number> = {
 
 /** A session an agent created through the `ctrl` CLI */
 export type AgentOrigin = {
+  /** e.g. "opencode", "fx", "claude-code" */
+  agent: string
   /** Session the agent ran in, when the CLI could tell */
   by: string | null
   at: number

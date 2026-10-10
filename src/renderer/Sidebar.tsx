@@ -121,7 +121,8 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
     const origin = state.createdByAgent[s.id]
     if (!origin) return null
     const parent = origin.by && state.sessions.find((p) => p.id === origin.by)
-    return parent ? `Created by an agent in "${parent.title}"` : "Created by an agent"
+    const who = origin.agent === "agent" ? "an agent" : origin.agent
+    return parent ? `Created by ${who} in "${parent.title}"` : `Created by ${who}`
   }
 
   const sessionRow = (s: SessionItem) =>

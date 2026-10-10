@@ -9,7 +9,7 @@ export function setChildEnv(opts: { socket: string; binDir: string }) {
 }
 
 /** Variables that say who the caller is: never inherited from whatever launched ctrl. */
-const CALLER_VARS = ["OPENCODE_SESSION_ID", "CTRL_TERM_ID", "CTRL_SESSION_ID"]
+const CALLER_VARS = ["OPENCODE_SESSION_ID", "CTRL_TERM_ID", "CTRL_SESSION_ID", "AI_AGENT", "AGENT", "CLAUDECODE", "CURSOR_AGENT"]
 
 export function childEnv(vars: Record<string, string | undefined> = {}): Record<string, string> {
   const env = { ...process.env } as Record<string, string>

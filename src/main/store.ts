@@ -104,8 +104,8 @@ export class Store {
     this.save()
   }
 
-  setCreatedByAgent(sessionID: string, by: string | null) {
-    this.data.createdByAgent[sessionID] = { by, at: Date.now() }
+  setCreatedByAgent(sessionID: string, agent: string, by: string | null) {
+    this.data.createdByAgent[sessionID] = { agent, by, at: Date.now() }
     this.save()
   }
 
