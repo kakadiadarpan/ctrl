@@ -72,6 +72,13 @@ export const STATUS_RANK: Record<SessionStatus, number> = {
   idle: 0,
 }
 
+/** A session an agent created through the `ctrl` CLI */
+export type AgentOrigin = {
+  /** Session the agent ran in, when the CLI could tell */
+  by: string | null
+  at: number
+}
+
 export type SessionItem = {
   /** opencode: "ses_…" · fx: "fx:<id>" */
   id: string
@@ -229,6 +236,8 @@ export type AppState = {
   spaces: Space[]
   assignments: Record<string, string>
   archived: Record<string, number>
+  /** sessionID → the agent that created it */
+  createdByAgent: Record<string, AgentOrigin>
   sessions: SessionItem[]
   currentSessionID: string | null
   bridgeConnected: boolean

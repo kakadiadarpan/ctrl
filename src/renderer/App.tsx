@@ -33,6 +33,7 @@ const EMPTY: AppState = {
   dark: false,
   spaces: [],
   assignments: {},
+  createdByAgent: {},
   archived: {},
   sessions: [],
   currentSessionID: null,

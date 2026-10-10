@@ -122,6 +122,7 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
     directory: s.directory,
     spaceID: store.data.assignments[s.id] ?? null,
     archived: store.data.archived[s.id] ?? null,
+    createdByAgent: store.data.createdByAgent[s.id] ?? null,
     status: s.status,
     ...(s.statusDetail ? { statusDetail: s.statusDetail } : {}),
     updated: s.updated,
@@ -163,6 +164,16 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
       })
     }
     return id
+  }
+
+  /** Remembers that an agent created this session, and from which session when the caller runs in one. */
+  const markCreatedByAgent = (sessionID: string, caller: CallerContext) => {
+    let by: string | null = null
+    try {
+      by = selfID(caller)
+    } catch {}
+    store.setCreatedByAgent(sessionID, by)
+    host.changed()
   }
 
   /** id, self, current or name:<title> → a session ctrl knows. */
@@ -542,11 +553,13 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
           () => undefined,
         )
         if (!id) return created
+        markCreatedByAgent(id, req.caller)
         if (args.title) await host.renameSession(id, args.title)
         const s = await waitFor(() => byID(id), 5000, "the session to show up").catch(() => undefined)
         if (s && args.prompt) await started(id, sentAt)
         return s ? sessionView(byID(id) ?? s) : { id, pending: true }
       }
+      markCreatedByAgent(created.id, req.caller)
       if (args.title) await host.renameSession(created.id, args.title)
       const s = await waitFor(() => byID(created.id), 5000, "the session to show up")
       if (args.prompt) {

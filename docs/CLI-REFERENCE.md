@@ -883,6 +883,7 @@ ctrl events [--type <type>...] [--session <session>...]
   directory: string
   spaceID: string | null     // null = in no space
   archived: number | null    // archived at (ms); null = not archived
+  createdByAgent: {by: string | null, at: number} | null   // made with `ctrl session new`; by = the agent's own session
   status: "needs-input" | "running" | "failed" | "unread" | "idle"
   statusDetail?: string      // e.g. "Waiting for permission: bash"
   updated: number            // ms

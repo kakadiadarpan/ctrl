@@ -149,6 +149,7 @@ const state = (): AppState => ({
   spaces: store.data.spaces,
   assignments: store.data.assignments,
   archived: store.data.archived,
+  createdByAgent: store.data.createdByAgent,
   ui: store.data.ui,
   settings: store.data.settings,
   themes,

@@ -117,6 +117,13 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
     }
   }
 
+  const agentText = (s: SessionItem) => {
+    const origin = state.createdByAgent[s.id]
+    if (!origin) return null
+    const parent = origin.by && state.sessions.find((p) => p.id === origin.by)
+    return parent ? `Created by an agent in "${parent.title}"` : "Created by an agent"
+  }
+
   const sessionRow = (s: SessionItem) =>
     renamingSession === s.id ? (
       <NameInput
@@ -146,9 +153,14 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
           e.preventDefault()
           void window.ctrl.showSessionMenu(s.id)
         }}
-        title={[statusText(s), s.title, `${s.harness} · ${shortPath(s.directory)}`].filter(Boolean).join("\n")}
+        title={[statusText(s), s.title, `${s.harness} · ${shortPath(s.directory)}`, agentText(s)].filter(Boolean).join("\n")}
       >
         {s.harness === "fx" && <span className="harness-tag">fx</span>}
+        {state.createdByAgent[s.id] && (
+          <span className="agent-tag">
+            <Icon name="bot" />
+          </span>
+        )}
         <span className="label">{s.title}</span>
         {hints?.has(s.id) ? (
           <kbd className="jump-hint">⌘{hints.get(s.id)}</kbd>

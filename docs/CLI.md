@@ -127,6 +127,9 @@ Wherever a command takes a session or a space, it also takes a selector:
 
 ## Behavior worth knowing
 
+- **Agent-created sessions are marked:** `session new` records `createdByAgent: {by, at}` in `state.json`,
+  with `by` set to the caller's own session (`self`) when it runs in one. The sidebar shows a bot icon on
+  those rows, and every `Session` returns the field (`null` for sessions you made yourself).
 - **Sending and waiting:** `session send` and `session new --prompt` return once the turn has started, so
   `send` followed by `session wait --for done` can't see the idle state from before the prompt.
 - **Typing vs sending:** `--submit` (and `session send`) sends through the opencode service, which works in
