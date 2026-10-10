@@ -4,14 +4,13 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import type { SkillStatus } from "../shared/types"
 
-const NAME = "read-session"
 /** In ctrl's copy only: hash of the source it was copied from. No marker = not ours, never touched. */
 const MARKER = ".ctrl-skill"
 /** Path of ctrl's executable, so digest.sh can run as node when node isn't installed. */
 const EXEC_FILE = ".ctrl-exec"
 
 /**
- * Installs the read-session skill into opencode's global skills folder, as a copy ctrl
+ * Installs one of ctrl's skills (read-session, ctrl) into opencode's global skills folder, as a copy ctrl
  * manages (refreshed when ctrl's version of it changes). Copies ctrl didn't make, like a
  * dev symlink or one in ~/.agents/skills, are reported as "external" and left alone.
  */
@@ -20,14 +19,19 @@ export class Skill {
   /** Other folders opencode reads skills from; a copy there means it's installed already. */
   private elsewhere: string[]
 
-  constructor(private source: string) {
+  constructor(
+    private source: string,
+    name = "read-session",
+    /** Extra files written into the installed copy, e.g. where ctrl's CLI lives */
+    private extraFiles: () => Record<string, string> = () => ({}),
+  ) {
     // CTRL_SKILLS_DIR is a test hook (docs/DEVELOPMENT.md): it also stops looking at the real folders.
     const override = process.env.CTRL_SKILLS_DIR
     const config = process.env.XDG_CONFIG_HOME || join(homedir(), ".config")
-    this.target = join(override || join(config, "opencode", "skills"), NAME)
+    this.target = join(override || join(config, "opencode", "skills"), name)
     this.elsewhere = override
       ? []
-      : [join(homedir(), ".agents/skills", NAME), join(homedir(), ".claude/skills", NAME)]
+      : [join(homedir(), ".agents/skills", name), join(homedir(), ".claude/skills", name)]
     this.refresh()
   }
 
@@ -83,6 +87,7 @@ export class Skill {
     cpSync(this.source, this.target, { recursive: true })
     writeFileSync(join(this.target, MARKER), `${this.hash()}\n`)
     writeFileSync(join(this.target, EXEC_FILE), `${process.execPath}\n`)
+    for (const [file, content] of Object.entries(this.extraFiles())) writeFileSync(join(this.target, file), content)
     this.refresh()
   }
 

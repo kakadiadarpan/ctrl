@@ -186,6 +186,12 @@ export type OpencodeCheck =
  */
 export type SkillStatus = { state: "installed" | "outdated" | "external" | "missing"; path?: string }
 
+/**
+ * The `ctrl` CLI on PATH: a symlink at `link` (~/.local/bin/ctrl) to the launcher in the app.
+ * other: something else is at `link` · shadowedBy: another `ctrl` comes first in PATH
+ */
+export type CliStatus = { state: "installed" | "missing" | "other"; link: string; target: string; shadowedBy?: string }
+
 /** Whether fx is installed. Only needed for fx sessions; ctrl works without it. */
 export type FxCheck = { state: "checking" } | { state: "ok"; version: string; bin: string } | { state: "missing" }
 
@@ -203,6 +209,9 @@ export type AppState = {
   opencode: OpencodeCheck
   fx: FxCheck
   skill: SkillStatus
+  /** The `ctrl` CLI: its PATH symlink and the ctrl skill that teaches agents about it */
+  cli: CliStatus
+  cliSkill: SkillStatus
   update: UpdateStatus
   ui: UiState
   settings: Settings
@@ -391,6 +400,10 @@ export type CtrlApi = {
   createSpace(name: string): Promise<string>
   renameSpace(id: string, name: string): Promise<void>
   onSpaceSettings(cb: (spaceID: string) => void): () => void
+  /** The CLI opens (true) or closes (false) the settings page */
+  onUiSettings(cb: (open: boolean) => void): () => void
+  /** The CLI opens the search palette with this query */
+  onUiPalette(cb: (query: string) => void): () => void
   updateSpace(id: string, patch: SpacePatch): Promise<void>
   pickSpaceFolder(id: string): Promise<void>
   listModels(harness: Harness, directory?: string): Promise<ModelChoices>
@@ -426,6 +439,9 @@ export type CtrlApi = {
   recheckOpencode(): Promise<void>
   installSkill(): Promise<void>
   uninstallSkill(): Promise<void>
+  /** Puts `ctrl` on PATH (~/.local/bin) and installs the ctrl skill */
+  installCli(): Promise<void>
+  uninstallCli(): Promise<void>
   /** A session was referenced: suggests installing the skill if it's missing (once per launch) */
   sessionReferenced(): Promise<void>
   checkForUpdates(): Promise<void>

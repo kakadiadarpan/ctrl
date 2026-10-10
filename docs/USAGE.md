@@ -12,10 +12,10 @@ The one-liner in the [README](../README.md#-install) installs the latest release
   **Settings → About** has a manual check. The same one-liner also reinstalls.
 - **First launch:** a welcome screen shows which harnesses (fx, opencode) are installed, with install commands
   for the missing ones. With both, you pick the one new sessions start with. **Settings → About → Welcome
-  screen** shows it again. Then ctrl offers to install the `read-session` skill (also in **Settings → Agent
-  skill**), so agents can read sessions you drag onto the terminal.
+  screen** shows it again. Then ctrl offers to install the `read-session` skill (also in **Settings → Agents**), so agents can read sessions you drag onto the terminal.
 - **Uninstall:** delete `/Applications/ctrl.app` and `~/Library/Application Support/ctrl`, plus
-  `~/.config/opencode/skills/read-session` if you installed the skill. Your opencode sessions aren't touched.
+  `~/.config/opencode/skills/read-session` and `~/.config/opencode/skills/ctrl` if you installed the skills,
+  and `~/.local/bin/ctrl` if you installed the command line. Your opencode sessions aren't touched.
 
 ## Everyday use
 
@@ -46,3 +46,14 @@ The one-liner in the [README](../README.md#-install) installs the latest release
 - Archive, archive all, delete space and delete session show an undo toast (⌘Z while it's up).
   Session deletes are held back until the toast expires (or ctrl quits), since opencode can't
   restore them. Deleted fx sessions go to the Trash
+
+## Let agents drive ctrl
+
+Agents in ctrl's terminals can run `ctrl` to create spaces and sessions, file and archive them, reference
+one session from another, change settings and switch what's on screen. Ask them in plain words ("start a
+session per PR in the reviews space"); the `ctrl` skill tells them how.
+
+- Inside ctrl's terminals it works as is. **Settings → Agents → ctrl command line → Install** also puts it in
+  `~/.local/bin` and installs the ctrl skill, so agents started elsewhere can use it too.
+- What an agent archives or deletes shows the usual undo toast, so ⌘Z undoes it.
+- Details: [CLI.md](CLI.md), every command: [CLI-REFERENCE.md](CLI-REFERENCE.md).

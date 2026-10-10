@@ -42,6 +42,16 @@ installed app keeps its state in `~/Library/Application Support/ctrl`; dev runs
 use `ctrl-dev` next to it (seeded from a copy of the real state on first run),
 so both can run side by side.
 
+## CLI
+
+The `ctrl` CLI builds to `dist/cli/` with the rest (`npm run dev` rebuilds it without restarting the app).
+Point it at a running dev or test ctrl with `CTRL_SOCKET`:
+
+```bash
+CTRL_SOCKET="$HOME/Library/Application Support/ctrl-dev/ctrl.sock" node dist/cli/cli.cjs status --pretty
+npm run cli-docs   # regenerate docs/CLI-REFERENCE.md after changing src/shared/cli/commands.ts
+```
+
 ## Debug hooks
 
 Any of these runs the app headless: hidden window, no dock icon, never takes focus
@@ -54,6 +64,9 @@ Any of these runs the app headless: hidden window, no dock icon, never takes foc
 - `CTRL_FX_HOME=/tmp/fx` read fx sessions from there instead of `~/.fx`. fx itself has no profile override,
   so sessions a test run creates land in `~/.fx/sessions`: delete them afterwards
 - `CTRL_SKILLS_DIR=/tmp/skills` install the read-session skill there, ignoring the real skill folders
+- `CTRL_BIN_DIR=/tmp/bin` install the `ctrl` command link there instead of `~/.local/bin`
+- `CTRL_SOCKET_PATH=/tmp/ctrl.sock` listen for the CLI there instead of the state folder (the CLI side reads
+  `CTRL_SOCKET`; a `CTRL_USER_DATA` run already gets its own socket in that folder)
 - `CTRL_UPDATES=1` check for updates in dev runs too; `CTRL_UPDATE_NO_RELAUNCH=1` swaps the app on
   update without reopening it
 - `CTRL_MCP_DIR=/tmp/proj` read MCP statuses for that folder instead of `~` (put a broken server in

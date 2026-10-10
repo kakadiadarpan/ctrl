@@ -17,6 +17,8 @@ const EMPTY: AppState = {
   opencode: { state: "checking" },
   fx: { state: "checking" },
   skill: { state: "missing" },
+  cli: { state: "missing", link: "", target: "" },
+  cliSkill: { state: "missing" },
   update: { state: "idle" },
   ui: {
     recentsCollapsed: false,
@@ -44,6 +46,7 @@ const EMPTY: AppState = {
 export function App() {
   const [state, setState] = useState<AppState>(EMPTY)
   const [palette, setPalette] = useState(false)
+  const [paletteQuery, setPaletteQuery] = useState("")
   const [settings, setSettings] = useState(false)
   const [spaceSettingsID, setSpaceSettingsID] = useState<string | null>(null)
   const editingSpace = state.spaces.find((s) => s.id === spaceSettingsID)
@@ -120,7 +123,29 @@ export function App() {
     [],
   )
 
+  // The CLI (`ctrl ui settings`, `ctrl ui palette`) drives these too.
+  useEffect(
+    () =>
+      window.ctrl.onUiSettings((open) => {
+        setPalette(false)
+        setSpaceSettingsID(null)
+        setSettings(open)
+      }),
+    [],
+  )
+  useEffect(
+    () =>
+      window.ctrl.onUiPalette((query) => {
+        setSettings(false)
+        setSpaceSettingsID(null)
+        setPaletteQuery(query)
+        setPalette(true)
+      }),
+    [],
+  )
+
   const closePalette = useCallback(() => {
+    setPaletteQuery("")
     setPalette(false)
     terminal.current?.focus()
   }, [])
@@ -228,7 +253,15 @@ export function App() {
         )}
       </main>
       {palette && (
-        <Palette state={state} onClose={closePalette} onOpen={open} onNew={create} onRevealSpace={revealSpace} />
+        <Palette
+          key={paletteQuery}
+          state={state}
+          initialQuery={paletteQuery}
+          onClose={closePalette}
+          onOpen={open}
+          onNew={create}
+          onRevealSpace={revealSpace}
+        />
       )}
     </div>
   )

@@ -93,10 +93,16 @@ Hold ⌘ to see a number next to each session, then press it.
   </tr>
 </table>
 
+### 🤖 Let agents drive it
+
+Agents can run `ctrl` to create spaces and sessions, file them, start work in parallel and wait for it,
+reference other sessions, change settings and switch what's on screen.
+
 ## 📚 Docs
 
 - [Usage](docs/USAGE.md): install details, spaces, shortcuts, settings
 - [Features](docs/FEATURES.md): everything ctrl does
 - [Harnesses](docs/HARNESSES.md): fx and opencode, and what ctrl supports for each
+- [CLI](docs/CLI.md): the `ctrl` command line for agents
 - [Architecture](docs/ARCHITECTURE.md): how it works inside
 - [Development](docs/DEVELOPMENT.md): run, release, debug hooks, screenshots

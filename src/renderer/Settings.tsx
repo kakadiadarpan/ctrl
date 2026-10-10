@@ -17,6 +17,7 @@ import {
   type CliInfo,
   type Settings as SettingsData,
   type SkillStatus,
+  type CliStatus,
   type SoundEvent,
   type UpdateStatus,
   SOUND_EVENTS,
@@ -209,6 +210,53 @@ function SkillRow({ skill }: { skill: SkillStatus }) {
       )}
       {(skill.state === "installed" || skill.state === "outdated") && (
         <button className="btn" disabled={busy} onClick={() => act(window.ctrl.uninstallSkill)}>
+          Uninstall
+        </button>
+      )}
+    </div>
+  )
+}
+
+const tilde = (path: string) => path.replace(/^\/Users\/[^/]+/, "~")
+
+/** The `ctrl` CLI on PATH, plus the ctrl skill that tells agents how to use it (docs/CLI.md). */
+function CliRow({ cli, skill }: { cli: CliStatus; skill: SkillStatus }) {
+  const [busy, setBusy] = useState(false)
+  const act = (fn: () => Promise<void>) => {
+    setBusy(true)
+    void fn().finally(() => setBusy(false))
+  }
+  const installed = cli.state === "installed"
+  const dot = installed ? (cli.shadowedBy ? "pending" : "connected") : cli.state === "other" ? "failed" : "disabled"
+  const text = installed
+    ? cli.shadowedBy
+      ? `Installed at ${tilde(cli.link)}, but ${tilde(cli.shadowedBy)} comes first in PATH. The ctrl skill still reaches this one`
+      : `Installed at ${tilde(cli.link)}${skill.state === "installed" || skill.state === "outdated" ? ", with the ctrl skill" : ""}`
+    : cli.state === "other"
+      ? `${tilde(cli.link)} is something else, so ctrl leaves it alone`
+      : "Not installed"
+  return (
+    <div className="setting">
+      <div className="mcp-name">
+        <span className={`mcp-dot ${dot}`} />
+        <div>
+          <div className="setting-title">ctrl command line</div>
+          <div className="setting-desc">
+            Lets agents create spaces and sessions, reference sessions, change settings and switch what's on screen.
+            Inside ctrl's terminals it works without installing.
+          </div>
+          <div className={`setting-desc adapter-status ${dot}`} title={cli.target}>
+            {text}
+          </div>
+        </div>
+      </div>
+      {!installed && cli.state !== "other" && (
+        <button className="btn primary" disabled={busy} onClick={() => act(window.ctrl.installCli)}>
+          Install
+        </button>
+      )}
+      {installed && (
+        <button className="btn" disabled={busy} onClick={() => act(window.ctrl.uninstallCli)}>
           Uninstall
         </button>
       )}
@@ -567,9 +615,10 @@ export function Settings({
           ))}
         </div>
 
-        <h2>Agent skill</h2>
+        <h2>Agents</h2>
         <div className="settings-card">
           <SkillRow skill={state.skill} />
+          <CliRow cli={state.cli} skill={state.cliSkill} />
         </div>
 
         <h2>Shortcuts</h2>
