@@ -92,6 +92,10 @@ where it lives.
   - Vercel (live, `vercel api`): deployment commit/branch/build state (15s while building), projects' latest production
   - Slack (live, `slack-cli`): thread root message, channel, author; channel names; kept until mentioned again
   - Linear, Notion: links only
+  - Sessions (`src/shared/adapters/sessions.ts`): `@session[Title](id)` references, as dropped on the terminal,
+    list the referenced session with its current title, space and folder, plus `archived`, `running`,
+    `needs you`, `failed` or `deleted` chips from the sidebar's list. Archiving the referenced session keeps the
+    row. Click opens it in ctrl, the copy button copies the reference. A session never lists itself
 
 ## Terminal
 

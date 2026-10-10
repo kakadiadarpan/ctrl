@@ -143,6 +143,10 @@ adapter = { id, name, types[], live? }
 - **Add an adapter:** a new file implementing `ResourceAdapter`, listed in `ADAPTERS`, and bump
   `RESOURCES_VERSION`. The indexer then re-extracts from the stored message text, locally and without
   refetching (~10ms for 1k messages).
+- **Session references** aren't links: `extractResources()` also matches `@session[Title](id)` and files it
+  under the `sessions` adapter as `ctrl://session/<id>`. The panel fills in title and state (archived,
+  running, deleted…) from the sidebar's session list instead of a live fetch, so renames and archiving show
+  up without reindexing, and a mention lives as long as the message that holds it.
 - **Same pipeline as search:** mentions are written in the same transaction as their message and deleted with it.
   Like search, only your prompts and the assistant's text are read, not tool output.
 
