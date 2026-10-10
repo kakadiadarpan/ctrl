@@ -758,7 +758,7 @@ ctrl search <query>... [--limit <n>] [--archived]
 
 ### resources list
 
-Links shared in sessions (PRs, issues, Linear, Slack, Vercel, …), most recent first
+Links shared in sessions (PRs, issues, Linear, Slack, Vercel, …) and referenced sessions, most recent first
 
 ```text
 ctrl resources list [--session <session>...] [--space <space>] [--type <type>...] [--limit <n>]
@@ -916,14 +916,15 @@ ctrl events [--type <type>...] [--session <session>...]
 ```ts
 {
   id: string                 // canonical key, e.g. "github-pr:vercel/next.js#99932"
-  type: string               // e.g. "github-pr"
-  url: string
+  type: string               // e.g. "github-pr", or "session" for a referenced session
+  url: string                // sessions: ctrl://session/<id>
   title: string
   subtitle?: string
   mentions: number
   sessions: number           // how many of the queried sessions mention it
   first: number, last: number
   sharedByYou: boolean       // pasted in a prompt (vs only mentioned by the agent)
+  session?: Session | null   // type "session": the referenced session (archived ones too), null once deleted
   live?: {title?, subtitle?, tone?, chips?, missing?, fetched}   // cached live details, when its adapter has them
 }
 ```

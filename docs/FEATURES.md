@@ -95,7 +95,8 @@ where it lives.
   - Sessions (`src/shared/adapters/sessions.ts`): `@session[Title](id)` references, as dropped on the terminal,
     list the referenced session with its current title, space and folder, plus `archived`, `running`,
     `needs you`, `failed` or `deleted` chips from the sidebar's list. Archiving the referenced session keeps the
-    row. Click opens it in ctrl, the copy button copies the reference. A session never lists itself
+    row. Click opens it in ctrl, the copy button copies the reference. A session never lists itself.
+    `ctrl resources list` returns them as type `session` with the referenced session (or `null` once deleted)
 
 ## Terminal
 

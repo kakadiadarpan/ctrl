@@ -866,17 +866,23 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
         ids = host.sessions().filter((s) => store.data.assignments[s.id] === spaceID).map((s) => s.id)
       } else ids = ((args.session as string[] | undefined) ?? ["current"]).map((sel) => resolveSession(sel, req.caller).id)
       let items = host.resources(ids)
+      // A session never lists itself as a reference, like the panel.
+      if (ids.length === 1) items = items.filter((r) => r.type !== "session" || r.data.id !== ids[0])
       if (args.type?.length) items = items.filter((r) => args.type.includes(r.type))
       const limit = Math.max(1, Math.min(500, Number(args.limit ?? 100)))
+      const sessions = new Map(host.sessions().map((s) => [s.id, s]))
       return {
         items: items.slice(0, limit).map((r) => {
           const offline = resourceType(r.type)?.describe(r.data)
           const subtitle = r.meta?.subtitle ?? offline?.subtitle
+          // Referenced sessions: their current state from the session list, null once deleted.
+          const ref = r.type === "session" ? sessions.get(r.data.id) : undefined
           return {
           id: r.id,
           type: r.type,
           url: r.url,
-          title: r.meta?.title ?? offline?.title ?? r.url,
+          title: ref?.title ?? r.meta?.title ?? offline?.title ?? r.url,
+          ...(r.type === "session" ? { session: ref ? sessionView(ref) : null } : {}),
           ...(subtitle ? { subtitle } : {}),
           mentions: r.mentions,
           sessions: r.sessions,
