@@ -150,6 +150,22 @@ adapter = { id, name, types[], live? }
 - **Same pipeline as search:** mentions are written in the same transaction as their message and deleted with it.
   Like search, only your prompts and the assistant's text are read, not tool output.
 
+## CLI
+
+`ctrl` drives the app from agents' shells over a unix socket in the state folder. Details, principles and how
+to add a command: [CLI.md](CLI.md).
+
+```text
+ctrl (dist/cli/cli.cjs) ──JSON──► ctrl.sock ──► cli-server.ts ──► cli-handlers.ts ──► CliHost (main.ts)
+```
+
+- **Same code paths as the UI:** handlers go through `CliHost`, which main implements with the functions IPC
+  uses (`newSession`, `archive`, `openSession`, `applySettings`, …).
+- **One registry** (`src/shared/cli/commands.ts`) drives argv parsing, `ctrl help`, the generated
+  [CLI-REFERENCE.md](CLI-REFERENCE.md), and handler lookup.
+- **Cheap for main:** reads come from memory; waits subscribe to state pushes; `session read` runs
+  `digest.mjs` in a child process.
+
 ## Notifications
 
 ctrl has **one** in-app notification: the toast (`src/renderer/Toast.tsx`). Don't add new banners,

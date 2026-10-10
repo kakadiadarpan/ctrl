@@ -10,6 +10,7 @@ Read `docs/ARCHITECTURE.md` first, especially **Principles** and **Notifications
 - README screenshots come from demo data: `node scripts/demo/capture.mjs` (`docs/DEVELOPMENT.md` → Screenshots).
 - ctrl runs two harnesses, opencode and fx: keep [docs/HARNESSES.md](docs/HARNESSES.md)'s support table current
   when a feature works differently (or not at all) for one of them.
+- The `ctrl` CLI is for agents: follow the principles in [docs/CLI.md](docs/CLI.md) for every command you add.
 - fx refuses session files others can read: anything written under `~/.fx/sessions` must stay `0600`.
 - Test runs must not leave fx sessions behind in `~/.fx/sessions` (fx has no profile override); delete the ones
   you create.

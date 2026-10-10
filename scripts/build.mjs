@@ -1,5 +1,5 @@
 import * as esbuild from "esbuild"
-import { mkdirSync, writeFileSync } from "node:fs"
+import { chmodSync, copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -22,6 +22,27 @@ export const configs = [
   },
   { ...common, entryPoints: ["src/preload/preload.ts"], outfile: "dist/preload.cjs", format: "cjs" },
   { ...common, entryPoints: ["src/indexer/indexer.ts"], outfile: "dist/indexer.cjs", format: "cjs" },
+  // The `ctrl` CLI (docs/CLI.md): shipped outside app.asar (Contents/Resources/cli) so plain node can run it.
+  {
+    ...common,
+    entryPoints: ["src/cli/cli.ts"],
+    outfile: "dist/cli/cli.cjs",
+    format: "cjs",
+    target: "node18",
+    sourcemap: false,
+    define: { __CTRL_VERSION__: JSON.stringify(JSON.parse(readFileSync("package.json", "utf8")).version) },
+    plugins: [
+      {
+        name: "cli-launcher",
+        setup(build) {
+          build.onEnd(() => {
+            copyFileSync("bin/ctrl", "dist/cli/ctrl")
+            chmodSync("dist/cli/ctrl", 0o755)
+          })
+        },
+      },
+    ],
+  },
 ]
 
 // The packaged app can't point opencode at bridge/tui.ts (no node_modules next to

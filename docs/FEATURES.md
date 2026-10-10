@@ -124,7 +124,7 @@ where it lives.
   event (or None), preview button, optional "also when ctrl is focused". One sound per burst (most urgent wins),
   played with `afplay`, and it replaces the system notification sound (`src/main/sound.ts`). fx's own sounds are
   always off (`FX_SOUND=off`), so they never double up with ctrl's
-- Agent skill: install / uninstall read-session, with its status
+- Agents: install / uninstall the read-session skill, and the `ctrl` command line with its skill, with status
 - About: ctrl's version, update status, Check for updates / Update and restart
 - Resizable sidebar (200–520px, double-click edge to reset), width saved (`src/renderer/ResizeHandle.tsx`)
 
@@ -133,6 +133,32 @@ where it lives.
 - Toasts are the single in-app notification: undo (⌘Z), View, one action button, sticky mode
   (`src/renderer/Toast.tsx`)
 - Sidebar banner only when ctrl can't reach opencode / the TUI, or an action failed
+
+## Command line (`ctrl`)
+
+- `ctrl` CLI for agents: JSON in/out, self-describing (`ctrl help --json`, `ctrl docs`), stable error codes
+  with hints. Principles and conventions in [CLI.md](CLI.md), every command in [CLI-REFERENCE.md](CLI-REFERENCE.md)
+  (`src/cli/cli.ts`, `src/shared/cli/`)
+- Sessions: list / filter / page, get, new (space settings apply, `--prompt`, background unless `--focus`),
+  focus, rename, move, archive / unarchive, send, wait for a status, stop, `ref`,
+  reference one session in another, read a session's digest (`src/main/cli-handlers.ts`)
+- Spaces: list, get, create, rename, set folder / harness / model / instructions, reorder, fold, archive all,
+  delete
+- Settings: list (typed, with allowed values and defaults), get, set, reset, as dotted keys
+- UI: what's on screen, opencode home screen with a prefilled prompt, window show / hide / raise, resources
+  panel, sidebar width, Recents / Archived folding, settings page, ⌘P palette with a query, toast
+- Search, resources, models, MCP servers, skills, app status / launch / updates, and an NDJSON `events` stream
+- Selectors: `self` (the calling session, via `OPENCODE_SESSION_ID` or ctrl's `CTRL_TERM_ID` in fx ptys),
+  `current`, `name:<title>`; ambiguous names list candidates
+- Agents can't delete sessions, only archive them (reversible, with the same undo toast as the UI); nothing
+  changes the screen without `--focus` / `focus`
+- Unix socket in the state folder (0600), one per ctrl (dev and test runs get their own); stale sockets
+  cleaned at launch (`src/main/cli-server.ts`)
+- Works in ctrl's terminals without installing (PATH + `CTRL_SOCKET` set in the TUI and fx ptys,
+  `src/main/child-env.ts`); Settings → Agents installs `~/.local/bin/ctrl` and the ctrl skill, and warns when
+  another `ctrl` comes first in PATH or its folder isn't in PATH (`src/main/cli-install.ts`, `skills/ctrl`)
+- `install.sh` links `~/.local/bin/ctrl` into the app bundle (relinks other ctrl copies, leaves foreign files
+  alone); after the welcome screen, one "set up agents" toast installs both skills and the link
 
 ## Install & updates
 
@@ -145,8 +171,8 @@ where it lives.
 - Updates from GitHub Releases through GitHub's public API, no login: checked at launch and every 6h, sticky toast with Update, which
   downloads, swaps the app bundle once ctrl quits and relaunches. Settings → About shows the version
   and a manual check (`src/main/updater.ts`)
-- read-session skill: offered in a toast once the welcome screen is done and when a session is referenced without it,
-  installed into `~/.config/opencode/skills` from Settings → Agent skill (install / uninstall), refreshed
+- read-session skill: offered in a toast once the welcome screen is done (with the ctrl skill and command) and when a session is referenced without it,
+  installed into `~/.config/opencode/skills` from Settings → Agents (install / uninstall), refreshed
   when ctrl's copy changes, and copies ctrl didn't make are left alone (`src/main/skill.ts`)
 - arm64 and x64 builds, published with `npm run release` (`scripts/package.mjs`, `scripts/release.mjs`)
 
