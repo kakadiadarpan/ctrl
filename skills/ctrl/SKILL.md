@@ -45,5 +45,6 @@ Don't guess flags: read `help` first. The most used ones:
 - Check `ok`. On errors, read `error.code` and follow `error.hint`; `AMBIGUOUS` lists `candidates`
   (retry with an id).
 - Don't change what's on screen (`focus`, `--focus`, `ui …`) unless the user asked for it.
-- Archive rather than delete. Deletes and archives show the user an undo toast.
+- You can't delete sessions, only archive them (`session archive`, reversible, the user gets an undo
+  toast). If the user wants a session deleted, tell them to do it from ctrl's sidebar.
 - Use `--fields id,title` on lists to keep output small.

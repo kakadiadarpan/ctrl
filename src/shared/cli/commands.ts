@@ -266,17 +266,6 @@ export const COMMANDS: CommandSpec[] = [
     mutates: true,
   },
   {
-    name: "session delete",
-    summary: "Deletes a session after the 8s undo window, like the UI",
-    details: ["Exact ids only. fx session folders go to the Trash."],
-    args: [
-      { name: "id", type: "string", positional: true, required: true, placeholder: "<id>", description: "Exact session id" },
-      { name: "wait", type: "bool", description: "Return once it's deleted for good (after the undo window)" },
-    ],
-    returns: "{id, deleteAt:number, deleted:boolean}",
-    mutates: true,
-  },
-  {
     name: "session send",
     summary: "Sends a message to a session, as if you typed it",
     args: [

@@ -227,14 +227,20 @@ function CliRow({ cli, skill }: { cli: CliStatus; skill: SkillStatus }) {
     void fn().finally(() => setBusy(false))
   }
   const installed = cli.state === "installed"
-  const dot = installed ? (cli.shadowedBy ? "pending" : "connected") : cli.state === "other" ? "failed" : "disabled"
+  const warn = installed && (cli.shadowedBy || cli.notOnPath)
+  const dot = installed ? (warn ? "pending" : "connected") : cli.state === "other" ? "failed" : "disabled"
+  const withSkill = skill.state === "installed" || skill.state === "outdated" ? ", with the ctrl skill" : ""
   const text = installed
     ? cli.shadowedBy
       ? `Installed at ${tilde(cli.link)}, but ${tilde(cli.shadowedBy)} comes first in PATH. The ctrl skill still reaches this one`
-      : `Installed at ${tilde(cli.link)}${skill.state === "installed" || skill.state === "outdated" ? ", with the ctrl skill" : ""}`
+      : cli.notOnPath
+        ? `Installed at ${tilde(cli.link)}, which isn't in your PATH. Add it to run ctrl outside ctrl's terminals`
+        : `Installed at ${tilde(cli.link)}${withSkill}`
     : cli.state === "other"
       ? `${tilde(cli.link)} is something else, so ctrl leaves it alone`
-      : "Not installed"
+      : cli.state === "stale"
+        ? `${tilde(cli.link)} points to another copy of ctrl`
+        : "Not installed"
   return (
     <div className="setting">
       <div className="mcp-name">
@@ -252,7 +258,7 @@ function CliRow({ cli, skill }: { cli: CliStatus; skill: SkillStatus }) {
       </div>
       {!installed && cli.state !== "other" && (
         <button className="btn primary" disabled={busy} onClick={() => act(window.ctrl.installCli)}>
-          Install
+          {cli.state === "stale" ? "Relink" : "Install"}
         </button>
       )}
       {installed && (

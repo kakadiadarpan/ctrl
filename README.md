@@ -34,7 +34,8 @@ Then install ctrl:
 curl -fsSL https://raw.githubusercontent.com/lucleray/ctrl/main/install.sh | sh
 ```
 
-ctrl updates itself. [docs/USAGE.md](docs/USAGE.md) covers updates, uninstalling and everyday use.
+It also links the `ctrl` command agents use to drive the app. ctrl updates itself.
+[docs/USAGE.md](docs/USAGE.md) covers updates, uninstalling and everyday use.
 
 ## ✨ Highlights
 

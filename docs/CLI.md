@@ -35,8 +35,10 @@ Every command, flag and output follows these. Check new commands against this li
    behaves the same whether you click or an agent runs it: undo toasts, harness rules, space settings.
 7. **Never yank the user's screen by default.** Creating or changing things doesn't switch the view. Only
    `focus` (or `--focus`) changes what's on screen, and only `--raise` brings the window forward.
-8. **The user stays in control.** Archive, delete and archive-all raise the same undo toast as the UI, so
-   ⌘Z undoes what an agent did. Deletes only take exact ids, never names or selectors.
+8. **The user stays in control.** Agents can't delete sessions: there's no command for it, only archiving,
+   which is always reversible. Archive and archive-all raise the same undo toast as the UI, so ⌘Z undoes what
+   an agent did. Deleting stays a human action in the sidebar. `space delete` exists because sessions survive
+   it (they go back to no space, with an undo toast), and it only takes an exact id.
 9. **Idempotent where it can be.** Archiving an archived session, moving a session where it already is, or
    setting a setting to its current value succeeds with `"changed":false`. Retrying is safe.
 10. **Bounded.** Lists are paged (`--limit`, default 50, max 500, `next` cursor). No command returns
@@ -97,7 +99,7 @@ Wherever a command takes a session or a space, it also takes a selector:
 
 - Ambiguous `name:` matches fail with `AMBIGUOUS` and list `candidates`; retry with an id.
 - `self` outside a session ctrl runs fails with `NO_SELF`.
-- `session delete` and `space delete` only take exact ids.
+- `space delete` only takes an exact id. There's no `session delete` (principle 8).
 
 ## Output
 
@@ -133,15 +135,27 @@ Wherever a command takes a session or a space, it also takes a selector:
   (`--focus`), while fx sessions get typed into in the background.
 - **New fx sessions:** fx only reports a session id once its process is up, so `session new` waits for it.
   If it doesn't come within 15s, `data` is `{pending:true, terminal}`.
-- **Delete:** like the UI, it's held for the 8s undo window. `--wait` returns once it's really gone.
+- **No session deletes:** agents archive (`session archive`, `space archive-all`). To delete, the user
+  right-clicks the session in the sidebar.
 
 ## Install and discovery
 
-- **Inside ctrl's terminals:** nothing to install. ctrl puts its CLI first in `PATH` and sets `CTRL_SOCKET`
-  in the TUI and fx terminals, and the installed app adds it to the `PATH` of the opencode service it starts.
-- **Everywhere else:** **Settings → Agents → ctrl command line → Install** links `~/.local/bin/ctrl` to
-  the launcher in the app, and installs the **ctrl skill** (`skills/ctrl`) next to read-session. Settings warns
-  when another `ctrl` comes first in `PATH`.
+```text
+install.sh ──► /Applications/ctrl.app/Contents/Resources/cli/ctrl ◄── ~/.local/bin/ctrl (symlink)
+first launch ──► toast "Let agents read your sessions and drive ctrl?" ──► read-session + ctrl skills
+```
+
+- **The installer** (`install.sh`) links `~/.local/bin/ctrl` to the launcher inside the app. The link points
+  into the bundle, so updates (which replace the bundle in place) keep it current. It relinks links to other
+  copies of ctrl, leaves anything else named `ctrl` alone, and says when `~/.local/bin` isn't in `PATH` or
+  another `ctrl` comes first.
+- **First launch:** after the welcome screen, one toast offers to set up agents: the read-session and ctrl
+  skills, plus the link if it's missing. Existing installs get the same offer once.
+- **Inside ctrl's terminals:** works even without the link. ctrl puts its CLI first in `PATH` and sets
+  `CTRL_SOCKET` in the TUI and fx terminals, and the installed app adds it to the `PATH` of the opencode
+  service it starts.
+- **Settings → Agents → ctrl command line** shows where it's linked, warns when the folder isn't in `PATH` or
+  another `ctrl` comes first, and installs, relinks or uninstalls it with the skill.
 - **The ctrl skill** tells agents when to reach for the CLI and to run `ctrl help --json` for the rest. It
   runs the CLI through its own `ctrl.sh`, which finds this app's CLI even when another `ctrl` is first in
   `PATH`. The skill stays short on purpose: the CLI documents itself, so they can't drift apart.
@@ -211,8 +225,7 @@ ctrl settings set defaultModel "vercel/anthropic/claude-haiku-4.5"
 
 ## Open questions
 
-- **Name:** another `ctrl` can already be on `PATH` (Settings flags it, and the skill works around it).
-  Rename the command if that turns out to be common.
+- **Name:** another `ctrl` can already be on `PATH`. The installer and Settings say so, and the skill works
+  around it. Rename the command if that turns out to be common.
 - **Auth beyond the socket mode:** `0600` keeps other users out; any process of yours can drive ctrl, like
   any process of yours can already run `opencode`.
-- **Deletes:** agents can delete (with the undo window). Restrict them to archiving if that proves risky.

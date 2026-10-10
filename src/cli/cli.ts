@@ -133,6 +133,11 @@ function parse(argv: string[]): { spec: CommandSpec; args: Record<string, unknow
     if (nouns.has(words[0]) && (wantsHelp || words.length === 1)) {
       return { spec: commandByName("help")!, args: { command: [words[0]] }, help: false }
     }
+    if (words[0] === "session" && ["delete", "rm", "remove"].includes(words[1] ?? "")) {
+      throw new CliError("USAGE", "The ctrl CLI can't delete sessions, by design: agents archive, people delete", {
+        hint: "Archive it instead (reversible): ctrl session archive <session>. The user can delete it from the sidebar",
+      })
+    }
     const near = [...new Set([...allNames, ...nouns])]
       .map((n) => ({ n, d: distance(n, words.slice(0, n.split(" ").length).join(" ")) }))
       .filter(({ n, d }) => d <= Math.max(2, Math.floor(n.length / 4)))
@@ -366,7 +371,7 @@ async function main() {
   }
   // Commands that wait on their own get their timeout plus a margin for the reply.
   const ownTimeout = typeof args.timeout === "number" ? args.timeout + 5000 : undefined
-  const timeout = spec.name === "session delete" && args.wait ? 20000 : (ownTimeout ?? globals.timeout)
+  const timeout = ownTimeout ?? globals.timeout
   const reply = await request(req, timeout)
   if (!reply.ok) fail(new CliError(reply.error.code, reply.error.message, reply.error))
   print(reply)

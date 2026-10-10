@@ -136,7 +136,7 @@ where it lives.
   with hints. Principles and conventions in [CLI.md](CLI.md), every command in [CLI-REFERENCE.md](CLI-REFERENCE.md)
   (`src/cli/cli.ts`, `src/shared/cli/`)
 - Sessions: list / filter / page, get, new (space settings apply, `--prompt`, background unless `--focus`),
-  focus, rename, move, archive / unarchive, delete (undo window), send, wait for a status, stop, `ref`,
+  focus, rename, move, archive / unarchive, send, wait for a status, stop, `ref`,
   reference one session in another, read a session's digest (`src/main/cli-handlers.ts`)
 - Spaces: list, get, create, rename, set folder / harness / model / instructions, reorder, fold, archive all,
   delete
@@ -146,12 +146,15 @@ where it lives.
 - Search, resources, models, MCP servers, skills, app status / launch / updates, and an NDJSON `events` stream
 - Selectors: `self` (the calling session, via `OPENCODE_SESSION_ID` or ctrl's `CTRL_TERM_ID` in fx ptys),
   `current`, `name:<title>`; ambiguous names list candidates
-- Agent actions show the same undo toasts as the UI; nothing changes the screen without `--focus` / `focus`
+- Agents can't delete sessions, only archive them (reversible, with the same undo toast as the UI); nothing
+  changes the screen without `--focus` / `focus`
 - Unix socket in the state folder (0600), one per ctrl (dev and test runs get their own); stale sockets
   cleaned at launch (`src/main/cli-server.ts`)
 - Works in ctrl's terminals without installing (PATH + `CTRL_SOCKET` set in the TUI and fx ptys,
   `src/main/child-env.ts`); Settings → Agents installs `~/.local/bin/ctrl` and the ctrl skill, and warns when
-  another `ctrl` comes first in PATH (`src/main/cli-install.ts`, `skills/ctrl`)
+  another `ctrl` comes first in PATH or its folder isn't in PATH (`src/main/cli-install.ts`, `skills/ctrl`)
+- `install.sh` links `~/.local/bin/ctrl` into the app bundle (relinks other ctrl copies, leaves foreign files
+  alone); after the welcome screen, one "set up agents" toast installs both skills and the link
 
 ## Install & updates
 
@@ -164,7 +167,7 @@ where it lives.
 - Updates from GitHub Releases through GitHub's public API, no login: checked at launch and every 6h, sticky toast with Update, which
   downloads, swaps the app bundle once ctrl quits and relaunches. Settings → About shows the version
   and a manual check (`src/main/updater.ts`)
-- read-session skill: offered in a toast once the welcome screen is done and when a session is referenced without it,
+- read-session skill: offered in a toast once the welcome screen is done (with the ctrl skill and command) and when a session is referenced without it,
   installed into `~/.config/opencode/skills` from Settings → Agents (install / uninstall), refreshed
   when ctrl's copy changes, and copies ctrl didn't make are left alone (`src/main/skill.ts`)
 - arm64 and x64 builds, published with `npm run release` (`scripts/package.mjs`, `scripts/release.mjs`)

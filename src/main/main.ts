@@ -358,21 +358,62 @@ const cliSkill = new Skill(
   () => ({ ".ctrl-cli": `${join(CLI_DIR, "ctrl")}\n` }),
 )
 
+/** Where the ctrl command ended up, or why agents outside ctrl's terminals won't find it. */
+const cliNote = () => {
+  const { shadowedBy, notOnPath, link } = cliInstall.current
+  const tilde = (p: string) => p.replace(homedir(), "~")
+  if (shadowedBy) return ` ${tilde(shadowedBy)} comes first in your PATH, so agents reach ctrl through the ctrl skill`
+  if (notOnPath) return ` Add ${tilde(join(link, ".."))} to your PATH to run ctrl outside ctrl's terminals`
+  return ""
+}
+
 const installCli = () => {
   try {
     cliInstall.install()
     if (cliSkill.refresh().state !== "external") cliSkill.install()
-    const { shadowedBy } = cliInstall.current
+    const note = cliNote()
+    toast({ icon: note ? "alert" : "check", message: `Installed the ctrl command and its skill.${note || " Agents can now drive ctrl"}` })
+  } catch (err) {
+    report(err)
+  }
+  push()
+}
+
+/** Nothing to set up: both skills there and the ctrl command linked (or something else owns its name). */
+const agentsReady = () =>
+  skill.refresh().state !== "missing" &&
+  cliSkill.refresh().state !== "missing" &&
+  !["missing", "stale"].includes(cliInstall.refresh().state)
+
+/** Installs what agents need: the read-session and ctrl skills, and the ctrl command. */
+const setUpAgents = () => {
+  try {
+    if (skill.refresh().state === "missing") skill.install()
+    if (["missing", "outdated"].includes(cliSkill.refresh().state)) cliSkill.install()
+    if (["missing", "stale"].includes(cliInstall.refresh().state)) cliInstall.install()
+    const note = cliNote()
     toast({
-      icon: shadowedBy ? "alert" : "check",
-      message: shadowedBy
-        ? `Installed ctrl, but ${shadowedBy.replace(homedir(), "~")} comes first in your PATH. Agents still reach ctrl through the ctrl skill`
-        : "Installed the ctrl command and its skill. Agents can now drive ctrl",
+      icon: note ? "alert" : "check",
+      message: `Agents are set up: they can read sessions and drive ctrl.${note}`,
     })
   } catch (err) {
     report(err)
   }
   push()
+}
+
+/** Once, after the welcome screen: offers the skills and the ctrl command in one go. */
+const suggestAgents = () => {
+  store.setUi({ agentsPrompted: true, skillPrompted: true })
+  if (agentsReady()) return
+  skillSuggested = true
+  toast(
+    {
+      icon: "link",
+      message: "Let agents read your sessions and drive ctrl? Installs ctrl's skills and the ctrl command",
+    },
+    { action: { label: "Install", run: setUpAgents } },
+  )
 }
 
 const uninstallCli = () => {
@@ -975,11 +1016,8 @@ function registerIpc() {
   ipcMain.handle("ui:set", (_e, patch: Partial<UiState>) => {
     store.setUi(patch)
     push()
-    // The skill offer waits for the welcome screen, so it doesn't land on top of it.
-    if (patch.onboarded && !store.data.ui.skillPrompted && skill.refresh().state === "missing") {
-      store.setUi({ skillPrompted: true })
-      setTimeout(suggestSkill, 1500)
-    }
+    // The agents offer waits for the welcome screen, so it doesn't land on top of it.
+    if (patch.onboarded && !store.data.ui.agentsPrompted) setTimeout(suggestAgents, 1500)
   })
   ipcMain.handle("session:archive", (_e, sessionID: string, archived: boolean) => {
     if (archived) return archive([sessionID])
@@ -1182,11 +1220,6 @@ const cliHost: CliHost = {
     store.setArchived(ids, false)
     push()
   },
-  deleteSession: (id) => {
-    if (!deleteSession(id)) throw new CliError("CONFLICT", `${id} is open in fx in another terminal`, { hint: "Quit fx there first" })
-    return { deleteAt: Date.now() + TOAST_MS }
-  },
-  isDeleted: (id) => !pendingDeletes.has(id) && !sessionByID(id),
   deleteSpace,
   createSpace: (name) => store.createSpace(name),
   changed: push,
@@ -1450,13 +1483,12 @@ app.whenReady().then(async () => {
   void Promise.all([recheckOpencode(), recheckFx()]).then(restoreOpen)
   search.start()
   refreshSkill()
-  if (!store.data.ui.skillPrompted && skill.refresh().state === "missing") {
+  if (!store.data.ui.agentsPrompted) {
     win!.webContents.once("did-finish-load", () =>
       setTimeout(() => {
-        // One thing at a time: the welcome screen comes first (finishing it offers the skill).
+        // One thing at a time: the welcome screen comes first (finishing it offers this).
         if (!store.data.ui.onboarded) return
-        store.setUi({ skillPrompted: true })
-        suggestSkill()
+        suggestAgents()
       }, 3000),
     )
   }

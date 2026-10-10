@@ -1,7 +1,10 @@
 import { accessSync, constants, lstatSync, mkdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs"
 import { homedir } from "node:os"
-import { join, resolve } from "node:path"
+import { dirname, join, resolve } from "node:path"
 import type { CliStatus } from "../shared/types"
+
+/** Another copy of ctrl's launcher (another app location, a dev checkout): ours to relink. */
+const CTRL_LAUNCHER = /\/(Contents\/Resources|dist)\/cli\/ctrl$/
 
 /**
  * Puts `ctrl` on PATH as a symlink in ~/.local/bin to the launcher inside the app (docs/CLI.md).
@@ -43,19 +46,33 @@ export class CliInstall {
     }
   }
 
-  refresh() {
+  refresh(): CliStatus {
     const target = this.linkTarget()
-    const state = target === this.target ? "installed" : target === null ? "missing" : "other"
+    const state =
+      target === this.target
+        ? "installed"
+        : target === null
+          ? "missing"
+          : target !== "other" && CTRL_LAUNCHER.test(target)
+            ? "stale"
+            : "other"
     const shadowedBy = state === "installed" ? this.shadow() : undefined
-    this.current = { state, link: this.link, target: this.target, ...(shadowedBy ? { shadowedBy } : {}) }
+    const notOnPath = !(process.env.PATH ?? "").split(":").includes(dirname(this.link))
+    this.current = {
+      state,
+      link: this.link,
+      target: this.target,
+      ...(shadowedBy ? { shadowedBy } : {}),
+      ...(notOnPath ? { notOnPath } : {}),
+    }
     return this.current
   }
 
   install() {
     const state = this.refresh().state
     if (state === "other") throw new Error(`${this.link} already exists and isn't ctrl's, not replacing it`)
-    mkdirSync(join(this.link, ".."), { recursive: true })
-    if (state === "installed") rmSync(this.link)
+    mkdirSync(dirname(this.link), { recursive: true })
+    if (state === "installed" || state === "stale") rmSync(this.link)
     symlinkSync(this.target, this.link)
     return this.refresh()
   }

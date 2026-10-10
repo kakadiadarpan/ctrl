@@ -4,6 +4,8 @@
 
 The one-liner in the [README](../README.md#-install) installs the latest release into `/Applications`.
 
+- **The `ctrl` command:** the script also links `~/.local/bin/ctrl`, the command line agents use to drive
+  ctrl ([below](#let-agents-drive-ctrl)).
 - **Why a script:** ctrl isn't notarized. Files curl downloads aren't quarantined, so the app opens without a
   Gatekeeper prompt.
 - **Downloaded the zip from the browser instead?** macOS will say it's damaged. Run
@@ -53,7 +55,10 @@ Agents in ctrl's terminals can run `ctrl` to create spaces and sessions, file an
 one session from another, change settings and switch what's on screen. Ask them in plain words ("start a
 session per PR in the reviews space"); the `ctrl` skill tells them how.
 
-- Inside ctrl's terminals it works as is. **Settings → Agents → ctrl command line → Install** also puts it in
-  `~/.local/bin` and installs the ctrl skill, so agents started elsewhere can use it too.
-- What an agent archives or deletes shows the usual undo toast, so ⌘Z undoes it.
+- The installer links it at `~/.local/bin/ctrl`, and the first launch offers to install the ctrl skill
+  that teaches agents about it. Inside ctrl's terminals it works either way.
+- **Settings → Agents → ctrl command line** shows its status, and warns if `~/.local/bin` isn't in your PATH
+  or another `ctrl` comes first.
+- Agents can archive sessions but never delete them. What they archive shows the usual undo toast, so ⌘Z
+  undoes it.
 - Details: [CLI.md](CLI.md), every command: [CLI-REFERENCE.md](CLI-REFERENCE.md).

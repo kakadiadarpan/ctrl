@@ -60,8 +60,6 @@ export type CliHost = {
   move(sessionID: string, spaceID: string | null): void
   archive(sessionIDs: string[]): void
   unarchive(sessionIDs: string[]): void
-  deleteSession(sessionID: string): { deleteAt: number }
-  isDeleted(sessionID: string): boolean
   deleteSpace(spaceID: string): void
   createSpace(name: string): string
   changed(): void
@@ -593,17 +591,6 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
       const todo = ids.filter((id) => store.data.archived[id])
       if (todo.length) host.unarchive(todo)
       return { unarchived: ids, changed: todo.length > 0 }
-    },
-    "session delete": async (args) => {
-      const id = String(args.id)
-      if (!byID(id)) throw new CliError("NOT_FOUND", `No session ${id}`, { hint: "Deletes take an exact id (ctrl session list --all)" })
-      const { deleteAt } = host.deleteSession(id)
-      if (!args.wait) return { id, deleteAt, deleted: false }
-      const deleted = await waitFor(() => host.isDeleted(id), deleteAt - Date.now() + 10000, "the delete").then(
-        () => true,
-        () => false,
-      )
-      return { id, deleteAt, deleted }
     },
     "session send": async (args, req) => {
       const s = resolveSession(args.session, req.caller)

@@ -64,7 +64,8 @@ Any of these runs the app headless: hidden window, no dock icon, never takes foc
 - `CTRL_FX_HOME=/tmp/fx` read fx sessions from there instead of `~/.fx`. fx itself has no profile override,
   so sessions a test run creates land in `~/.fx/sessions`: delete them afterwards
 - `CTRL_SKILLS_DIR=/tmp/skills` install the read-session skill there, ignoring the real skill folders
-- `CTRL_BIN_DIR=/tmp/bin` install the `ctrl` command link there instead of `~/.local/bin`
+- `CTRL_BIN_DIR=/tmp/bin` install the `ctrl` command link there instead of `~/.local/bin` (`install.sh`
+  reads it too)
 - `CTRL_SOCKET_PATH=/tmp/ctrl.sock` listen for the CLI there instead of the state folder (the CLI side reads
   `CTRL_SOCKET`; a `CTRL_USER_DATA` run already gets its own socket in that folder)
 - `CTRL_UPDATES=1` check for updates in dev runs too; `CTRL_UPDATE_NO_RELAUNCH=1` swaps the app on

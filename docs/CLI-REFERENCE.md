@@ -8,7 +8,7 @@
 - **help**: [`help`](#help)
 - **docs**: [`docs`](#docs)
 - **app**: [`app status`](#app-status) · [`app launch`](#app-launch) · [`app update check`](#app-update-check) · [`app update install`](#app-update-install)
-- **session**: [`session list`](#session-list) · [`session get`](#session-get) · [`session new`](#session-new) · [`session focus`](#session-focus) · [`session rename`](#session-rename) · [`session move`](#session-move) · [`session archive`](#session-archive) · [`session unarchive`](#session-unarchive) · [`session delete`](#session-delete) · [`session send`](#session-send) · [`session wait`](#session-wait) · [`session ref`](#session-ref) · [`session reference`](#session-reference) · [`session read`](#session-read) · [`session stop`](#session-stop)
+- **session**: [`session list`](#session-list) · [`session get`](#session-get) · [`session new`](#session-new) · [`session focus`](#session-focus) · [`session rename`](#session-rename) · [`session move`](#session-move) · [`session archive`](#session-archive) · [`session unarchive`](#session-unarchive) · [`session send`](#session-send) · [`session wait`](#session-wait) · [`session ref`](#session-ref) · [`session reference`](#session-reference) · [`session read`](#session-read) · [`session stop`](#session-stop)
 - **space**: [`space list`](#space-list) · [`space get`](#space-get) · [`space create`](#space-create) · [`space rename`](#space-rename) · [`space set`](#space-set) · [`space move`](#space-move) · [`space fold`](#space-fold) · [`space unfold`](#space-unfold) · [`space archive-all`](#space-archive-all) · [`space delete`](#space-delete)
 - **settings**: [`settings list`](#settings-list) · [`settings get`](#settings-get) · [`settings set`](#settings-set) · [`settings reset`](#settings-reset)
 - **ui**: [`ui get`](#ui-get) · [`ui home`](#ui-home) · [`ui window`](#ui-window) · [`ui resources`](#ui-resources) · [`ui sidebar`](#ui-sidebar) · [`ui section`](#ui-section) · [`ui settings`](#ui-settings) · [`ui palette`](#ui-palette) · [`ui toast`](#ui-toast)
@@ -263,23 +263,6 @@ ctrl session unarchive <session>...
 | `<session>...` | Sessions (selectors as for <session>) · required |
 
 **Returns:** `{unarchived:[id], changed}`
-
-### session delete
-
-Deletes a session after the 8s undo window, like the UI *(changes state)*
-
-```text
-ctrl session delete <id> [--wait]
-```
-
-- Exact ids only. fx session folders go to the Trash.
-
-| Argument | Meaning |
-|---|---|
-| `<id>` | Exact session id · required |
-| `--wait / --no-wait` | Return once it's deleted for good (after the undo window) |
-
-**Returns:** `{id, deleteAt:number, deleted:boolean}`
 
 ### session send
 

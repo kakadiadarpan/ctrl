@@ -103,6 +103,8 @@ export type UiState = {
   resourcesScope: "session" | "space"
   /** The "install the read-session skill" toast was shown at launch once already */
   skillPrompted?: boolean
+  /** The "set up agents" toast (skills + ctrl command) was shown once already */
+  agentsPrompted?: boolean
   /** The welcome screen (pick a harness) was completed; Settings → About can show it again */
   onboarded?: boolean
 }
@@ -188,9 +190,16 @@ export type SkillStatus = { state: "installed" | "outdated" | "external" | "miss
 
 /**
  * The `ctrl` CLI on PATH: a symlink at `link` (~/.local/bin/ctrl) to the launcher in the app.
- * other: something else is at `link` · shadowedBy: another `ctrl` comes first in PATH
+ * stale: links to another copy of ctrl (installing relinks it) · other: something else is at `link`, left alone ·
+ * shadowedBy: another `ctrl` comes first in PATH · notOnPath: `link`'s folder isn't in PATH
  */
-export type CliStatus = { state: "installed" | "missing" | "other"; link: string; target: string; shadowedBy?: string }
+export type CliStatus = {
+  state: "installed" | "missing" | "stale" | "other"
+  link: string
+  target: string
+  shadowedBy?: string
+  notOnPath?: boolean
+}
 
 /** Whether fx is installed. Only needed for fx sessions; ctrl works without it. */
 export type FxCheck = { state: "checking" } | { state: "ok"; version: string; bin: string } | { state: "missing" }
