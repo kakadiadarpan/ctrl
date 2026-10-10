@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { CTRL_INSTRUCTIONS } from "../shared/ctrl-instructions"
 import {
   FONT_SIZE,
   type Appearance,
@@ -426,6 +427,7 @@ export function Settings({
   const zoomKeys = [key("zoom-in"), key("zoom-out"), key("zoom-reset")]
 
   const root = useRef<HTMLDivElement>(null)
+  const [showCtrlText, setShowCtrlText] = useState(false)
 
   // Take focus away from the terminal so keystrokes don't leak into the TUI.
   useEffect(() => root.current?.focus(), [])
@@ -599,6 +601,29 @@ export function Settings({
               fallback={{ label: "Default fx model", detail: "ctrl doesn't set a model, so fx uses its own default" }}
             />
           </div>
+
+          <div className="setting setting-with-sub">
+            <div>
+              <div className="setting-title">ctrl instructions</div>
+              <div className="setting-desc">
+                Tells agents they run inside ctrl and how to look around with the <code>ctrl</code> command: their session,
+                space, the other sessions and links in it. Invisible in the chat. opencode only. A space can turn it on
+                or off for its sessions.{" "}
+                <a href="#" onClick={(e) => (e.preventDefault(), setShowCtrlText((v) => !v))}>
+                  {showCtrlText ? "Hide text" : "Show text"}
+                </a>
+              </div>
+            </div>
+            <Toggle
+              on={settings.ctrlInstructions}
+              onChange={(ctrlInstructions) => void window.ctrl.setSettings({ ctrlInstructions })}
+            />
+          </div>
+          {showCtrlText && (
+            <div className="setting-sub">
+              <textarea className="setting-textarea" readOnly value={CTRL_INSTRUCTIONS} rows={9} />
+            </div>
+          )}
         </div>
 
         <h2>MCP servers</h2>

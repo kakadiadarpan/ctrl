@@ -421,7 +421,7 @@ ctrl space get <space> [--sessions]
 Creates a space (at the top unless --index) *(changes state)*
 
 ```text
-ctrl space create <name> [--index <n>] [--directory <directory>] [--harness opencode|fx|default] [--model <model>] [--fx-model <fx-model>] [--model-enabled] [--instructions <instructions>]
+ctrl space create <name> [--index <n>] [--directory <directory>] [--harness opencode|fx|default] [--model <model>] [--fx-model <fx-model>] [--model-enabled] [--instructions <instructions>] [--ctrl-instructions on|off|default]
 ```
 
 | Argument | Meaning |
@@ -434,6 +434,7 @@ ctrl space create <name> [--index <n>] [--directory <directory>] [--harness open
 | `--fx-model <fx-model>` | fx model for new sessions, `<model>[#<effort>]`; "" clears it |
 | `--model-enabled / --no-model-enabled` | Whether the space's model applies (off: the app default applies) |
 | `--instructions <instructions>` | Instructions attached to new opencode sessions; "" clears them. `-` reads stdin |
+| `--ctrl-instructions on\|off\|default` | ctrl instruction on this space's opencode sessions; `default` follows the app setting (ctrlInstructions) |
 
 **Returns:** `Space`
 
@@ -457,7 +458,7 @@ ctrl space rename <space> <name>
 Space settings for new sessions started in it *(changes state)*
 
 ```text
-ctrl space set <space> [--directory <directory>] [--harness opencode|fx|default] [--model <model>] [--fx-model <fx-model>] [--model-enabled] [--instructions <instructions>]
+ctrl space set <space> [--directory <directory>] [--harness opencode|fx|default] [--model <model>] [--fx-model <fx-model>] [--model-enabled] [--instructions <instructions>] [--ctrl-instructions on|off|default]
 ```
 
 | Argument | Meaning |
@@ -469,6 +470,7 @@ ctrl space set <space> [--directory <directory>] [--harness opencode|fx|default]
 | `--fx-model <fx-model>` | fx model for new sessions, `<model>[#<effort>]`; "" clears it |
 | `--model-enabled / --no-model-enabled` | Whether the space's model applies (off: the app default applies) |
 | `--instructions <instructions>` | Instructions attached to new opencode sessions; "" clears them. `-` reads stdin |
+| `--ctrl-instructions on\|off\|default` | ctrl instruction on this space's opencode sessions; `default` follows the app setting (ctrlInstructions) |
 
 **Returns:** `Space & {changed}`
 
@@ -906,6 +908,7 @@ ctrl events [--type <type>...] [--session <session>...]
   fxModel: string | null     // fx model ref, "<model>[#<effort>]"
   modelEnabled: boolean
   instructions: string | null
+  ctrlInstructions: boolean | null   // ctrl instruction on its opencode sessions; null = app setting
   sessions: number           // non-archived sessions in it
   status: Session["status"]  // most urgent of its sessions
 }
@@ -940,6 +943,7 @@ ctrl events [--type <type>...] [--session <session>...]
 | `defaultModelEnabled` | boolean | Off: ctrl passes no model and the harness picks its own |
 | `defaultModel` | "<provider>/<model>[#<variant>]" \| {providerID,id,variant?} \| null | opencode model for new sessions, used when defaultModelEnabled |
 | `defaultFxModel` | "<model>[#<effort>]" \| {providerID:"fx",id,variant?} \| null | fx model for new sessions, used when defaultModelEnabled |
+| `ctrlInstructions` | boolean | Invisible instruction on opencode sessions: tells the agent it runs in ctrl and how to look around with the ctrl CLI; spaces can override |
 | `dockBadge` | boolean | Dock badge with the sessions waiting on you |
 | `notifications` | boolean | macOS notifications when a background session needs you, finishes or fails |
 | `sounds` | boolean | Sounds when a session needs you, fails or finishes |

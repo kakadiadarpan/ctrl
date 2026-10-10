@@ -147,6 +147,7 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
       fxModel: formatModel(space.fxModel),
       modelEnabled: space.modelEnabled ?? true,
       instructions: space.instructions ?? null,
+      ctrlInstructions: space.ctrlInstructions ?? null,
       sessions: inSpace.length,
       status,
     }
@@ -256,6 +257,8 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
     if (args["fx-model"] !== undefined) patch.fxModel = args["fx-model"] === "" ? null : parseModelArg(args["fx-model"], "fx")
     if (args["model-enabled"] !== undefined) patch.modelEnabled = args["model-enabled"]
     if (args.instructions !== undefined) patch.instructions = args.instructions === "" ? null : args.instructions
+    if (args["ctrl-instructions"] !== undefined)
+      patch.ctrlInstructions = args["ctrl-instructions"] === "default" ? null : args["ctrl-instructions"] === "on"
     return patch
   }
 
@@ -440,6 +443,7 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
     defaultModelEnabled: false,
     defaultModel: null,
     defaultFxModel: null,
+    ctrlInstructions: true,
     dockBadge: true,
     notifications: true,
     sounds: true,
@@ -697,7 +701,7 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
     "space set": (args, req) => {
       const space = resolveSpace(args.space, req.caller)
       const patch = spacePatch(args, req.caller)
-      if (!Object.keys(patch).length) throw new CliError("USAGE", "Nothing to set", { hint: "Pass at least one of --directory, --harness, --model, --fx-model, --model-enabled, --instructions" })
+      if (!Object.keys(patch).length) throw new CliError("USAGE", "Nothing to set", { hint: "Pass at least one of --directory, --harness, --model, --fx-model, --model-enabled, --instructions, --ctrl-instructions" })
       const before = JSON.stringify(space)
       store.patchSpace(space.id, patch)
       const changed = JSON.stringify(space) !== before

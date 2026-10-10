@@ -1,6 +1,6 @@
 ---
 name: ctrl
-description: Drive the ctrl app (the window running your opencode / fx sessions) from the shell with the `ctrl` CLI. Use when the user asks you to create, find, file, rename, archive or open sessions or spaces in ctrl, start parallel sessions and wait for them, reference or read another session, change ctrl settings, or switch what ctrl shows on screen.
+description: Know where you are and drive the ctrl app (the window running your opencode / fx sessions) with the `ctrl` CLI. Use when you run inside ctrl (CTRL_SOCKET is set) and need context about your surroundings - this session, the space it's in, the other sessions in that space, or the PRs, issues and links shared across it - or when the user mentions "this space", "my other sessions", "what I was working on" or work done in another session. Also use to create, find, file, rename, archive or open sessions or spaces, start parallel sessions and wait for them, reference or read another session, change ctrl settings, or switch what ctrl shows on screen.
 ---
 
 # ctrl CLI
@@ -16,6 +16,18 @@ sh <skill base directory>/ctrl.sh <command> [args]
 
 `ctrl.sh` runs the CLI that ships with the app, even if another `ctrl` comes first in PATH. Inside
 terminals ctrl runs, plain `ctrl` works too.
+
+## Where am I?
+
+Inside a session ctrl runs, `self` is the session you're in. Start here:
+
+```bash
+ctrl session get self                                  # this session: title, folder, spaceID
+ctrl space get self                                    # its space: name, folder, instructions
+ctrl session list --space self --fields id,title,status  # the other sessions in the space
+ctrl resources list --space self                       # PRs, issues, links and referenced sessions in the space
+ctrl session read <id>                                 # digest of another session
+```
 
 ## Learn the commands
 
@@ -41,7 +53,7 @@ Don't guess flags: read `help` first. The most used ones:
 ## Rules
 
 - Sessions: an id (`ses_…`, `fx:…`), `self` (the session you're in), `current` (on screen) or
-  `name:<title>`. Spaces: an id, `name:<name>`, or `current`.
+  `name:<title>`. Spaces: an id, `name:<name>`, `self` (your session's space) or `current`.
 - Check `ok`. On errors, read `error.code` and follow `error.hint`; `AMBIGUOUS` lists `candidates`
   (retry with an id).
 - Don't change what's on screen (`focus`, `--focus`, `ui …`) unless the user asked for it.

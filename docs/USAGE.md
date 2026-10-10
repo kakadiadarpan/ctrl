@@ -34,6 +34,13 @@ The one-liner in the [README](../README.md#-install) installs the latest release
     falls back to **Settings → Custom model**; when that's off too, ctrl passes no model and the harness picks
   - instructions (opencode only): attached as a session instruction entry (`ctrl.space`), invisible in the
     chat but part of the model's context on every turn
+  - ctrl instructions (opencode only): Default follows **Settings → Sessions → ctrl instructions**, or On / Off
+    for this space
+- **ctrl instructions** (on by default): an invisible session instruction entry (`ctrl.cli`) telling the agent it
+  runs inside ctrl and how to look around with the `ctrl` CLI (`session get self`, `space get self`, the other
+  sessions and resources in its space). Added when ctrl creates a session, and synced on the session on screen,
+  so older sessions or ones started from the TUI get it (or lose it, when turned off) once you open them. Text
+  in `src/shared/ctrl-instructions.ts`
 - ⌘1–9 jumps to the Nth visible session; hold ⌘ to see the numbers
 - Drag a session onto the terminal to reference it: ctrl pastes `@session[Title](id)` (`session[…]` in
   fx, where `@` attaches a file) and

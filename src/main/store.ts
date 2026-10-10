@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS: Settings = {
   defaultModel: null,
   defaultFxModel: null,
   defaultModelEnabled: false,
+  ctrlInstructions: true,
   adapterModes: {},
   shortcuts: {},
 }

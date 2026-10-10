@@ -43,7 +43,8 @@ where it lives.
 - Move sessions between spaces by drag and drop, onto Recents to unassign, or via right-click → Move to
 - ⋯ menu: new session in space, rename, space settings, archive all sessions, delete space (`src/main/main.ts`)
 - Space settings for new sessions started from ctrl in that space: folder, harness, model (toggle + variant,
-  one per harness), instructions attached as an invisible session instruction (opencode only)
+  one per harness), instructions attached as an invisible session instruction (opencode only), ctrl
+  instructions Default / On / Off
   (`src/renderer/SpaceSettings.tsx`)
 - Status rollup on a space: shows the most urgent status of its sessions (`src/renderer/StatusIcon.tsx`)
 
@@ -117,6 +118,10 @@ where it lives.
 - Terminal text size
 - Sessions: harness for new sessions, what's installed, default model per harness (toggle, searchable
   picker grouped by provider, variant / effort picker) (`src/renderer/ModelPicker.tsx`)
+- ctrl instructions (on by default, Show text): an invisible instruction entry (`ctrl.cli`) on opencode sessions
+  telling the agent it runs in ctrl and how to look around with the `ctrl` CLI. Added at creation and synced on
+  the session on screen, so older and TUI-started sessions get it when opened; spaces can override
+  (`src/shared/ctrl-instructions.ts`, `syncCtrlInstructions()` in `src/main/opencode.ts`)
 - MCP servers status, with a sticky toast + Fix button when one fails or needs auth
 - Rebindable shortcuts (`src/renderer/ShortcutSettings.tsx`, `src/shared/shortcuts.ts`)
 - Notifications: dock badge with sessions waiting on you, macOS notifications when a background session
@@ -143,7 +148,7 @@ where it lives.
 - Sessions: list / filter / page, get, new (space settings apply, `--prompt`, background unless `--focus`),
   focus, rename, move, archive / unarchive, send, wait for a status, stop, `ref`,
   reference one session in another, read a session's digest (`src/main/cli-handlers.ts`)
-- Spaces: list, get, create, rename, set folder / harness / model / instructions, reorder, fold, archive all,
+- Spaces: list, get, create, rename, set folder / harness / model / instructions / ctrl instructions, reorder, fold, archive all,
   delete
 - Settings: list (typed, with allowed values and defaults), get, set, reset, as dotted keys
 - UI: what's on screen, opencode home screen with a prefilled prompt, window show / hide / raise, resources

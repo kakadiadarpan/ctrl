@@ -44,6 +44,7 @@ so ctrl keeps a process per open session and reads its files and terminal output
 | Harness per space / app default | ✅ | ✅ | |
 | Custom model per space / app default | ✅ | ✅ | Picked separately per harness · fx: `--model` and `--effort` |
 | Space instructions | ✅ | ❌ | fx has no way to take extra instructions for a session |
+| ctrl instructions (agent knows it's in ctrl) | ✅ | ❌ | Same reason. fx agents still find `ctrl` through the `ctrl` skill |
 | Switching sessions | ✅ instant | ⚠️ | fx: instant once open, about 1s the first time (`fx resume`) |
 | Many sessions open at once | ✅ | ⚠️ | fx: up to 12 live processes, the least recently used idle ones are closed past that |
 | Turns keep running when ctrl quits | ✅ | ❌ | fx has no background service: quitting stops the turn, send `continue` after reopening |

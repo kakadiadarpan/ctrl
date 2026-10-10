@@ -211,6 +211,33 @@ export function SpaceSettings({
               rows={8}
             />
           </div>
+          <div className="setting">
+            <div>
+              <div className="setting-title">ctrl instructions</div>
+              <div className="setting-desc">
+                Tells agents in this space's opencode sessions that they run inside ctrl and how to look around with the{" "}
+                <code>ctrl</code> command. Applies to new sessions and to existing ones when you open them.
+              </div>
+            </div>
+            <div className="segmented">
+              <button
+                className={space.ctrlInstructions === undefined ? "on" : ""}
+                title={`Follows Settings (${settings.ctrlInstructions ? "on" : "off"})`}
+                onClick={() => void window.ctrl.updateSpace(space.id, { ctrlInstructions: null })}
+              >
+                Default
+              </button>
+              {([true, false] as const).map((on) => (
+                <button
+                  key={String(on)}
+                  className={space.ctrlInstructions === on ? "on" : ""}
+                  onClick={() => void window.ctrl.updateSpace(space.id, { ctrlInstructions: on })}
+                >
+                  {on ? "On" : "Off"}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
