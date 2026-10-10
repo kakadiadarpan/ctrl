@@ -60,4 +60,10 @@ so ctrl keeps a process per open session and reads its files and terminal output
 | Theme for the terminal | ✅ | ⚠️ | fx follows ctrl's light/dark; pick an fx theme in `~/.fx/settings.json` |
 | MCP server status and Fix | ✅ | ❌ | opencode's MCP servers only |
 | `/new`, `/resume` inside the terminal followed by the sidebar | ✅ | ✅ | |
+| `ctrl` CLI: list, file, archive, focus, rename, reference, read | ✅ | ✅ | [CLI.md](CLI.md) |
+| `ctrl` CLI: `self` | ✅ | ✅ | opencode: `OPENCODE_SESSION_ID` · fx: `CTRL_TERM_ID`, only in fx processes ctrl runs |
+| `ctrl session new` | ✅ | ⚠️ | fx: waits up to 15s for fx to report the new session's id |
+| `ctrl session send` | ✅ background | ⚠️ | fx: typed into its fx process (started in the background), CONFLICT when open in another terminal |
+| `ctrl` typing without sending (`--no-submit`, `reference`) | ⚠️ | ✅ | opencode: one TUI, so the session must be on screen (`--focus`) |
+| `ctrl session stop` | ✅ | ⚠️ | fx: Escape to its fx process, only for sessions open in ctrl |
 | Welcome screen | ✅ | ✅ | First launch: shows what's installed, lets you pick when both are, install commands when neither is |

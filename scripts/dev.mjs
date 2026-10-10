@@ -31,6 +31,8 @@ const restartPlugin = {
 }
 
 for (const config of configs) {
-  const ctx = await esbuild.context({ ...config, plugins: [restartPlugin] })
+  // The CLI runs on its own: rebuilding it doesn't need an app restart.
+  const cli = config.outfile.startsWith("dist/cli/")
+  const ctx = await esbuild.context({ ...config, plugins: [...(config.plugins ?? []), ...(cli ? [] : [restartPlugin])] })
   await ctx.watch()
 }

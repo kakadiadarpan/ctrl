@@ -3,6 +3,7 @@ import { homedir } from "node:os"
 import { createRequire } from "node:module"
 import type { IPty } from "node-pty"
 import type { TermInfo } from "../shared/types"
+import { childEnv } from "./child-env"
 import { findFx, rawID, type LiveStatus } from "./fx"
 
 const pty: typeof import("node-pty") = createRequire(import.meta.url)("node-pty")
@@ -37,6 +38,8 @@ type Term = {
   /** Start of an OSC 7501 report cut off at the end of the last chunk */
   carry: string
   lastUsed: number
+  /** When it last printed anything, to tell when a fresh fx is ready for input */
+  lastOutput: number
 }
 
 type Events = {
@@ -138,9 +141,35 @@ export class FxTerminals {
       .map((t) => t.sessionID!)
   }
 
-  /** Starts a fresh fx; its session id arrives later through claim(). */
-  create(opts: SpawnOptions) {
-    return this.spawn(opts, null)
+  /** Starts a fresh fx; its session id arrives later through claim(). `show`: put it on screen. */
+  create(opts: SpawnOptions, show = true) {
+    const previous = this.activeID
+    const id = this.spawn(opts, null)
+    if (!show) {
+      this.activeID = previous
+      this.events.onChange()
+    }
+    return id
+  }
+
+  /** The session a terminal has now (undefined: no such terminal). */
+  sessionOf(termID: string) {
+    const term = this.terms.get(termID)
+    return term ? term.sessionID : undefined
+  }
+
+  /**
+   * Resolves once fx has started and gone quiet, so typed input isn't lost while it boots.
+   * Gives up (and resolves anyway) after `max` ms.
+   */
+  async ready(termID: string, max = 8000) {
+    const started = Date.now()
+    while (Date.now() - started < max) {
+      const term = this.terms.get(termID)
+      if (!term || term.exited !== undefined) throw new Error("fx isn't running")
+      if (term.total > 0 && Date.now() - term.lastOutput > 500) return
+      await new Promise((r) => setTimeout(r, 100))
+    }
   }
 
   private spawn(opts: SpawnOptions, sessionID: string | null, background = false) {
@@ -155,6 +184,7 @@ export class FxTerminals {
       backlogSize: 0,
       total: 0,
       carry: "",
+      lastOutput: 0,
       // Restored in the background: older than anything you've touched, in restore order.
       lastUsed: background ? Date.now() - 3_600_000 : Date.now(),
     }
@@ -170,7 +200,7 @@ export class FxTerminals {
   private start(term: Term) {
     const bin = findFx()
     const env = {
-      ...process.env,
+      ...childEnv({ CTRL_TERM_ID: term.id }),
       ...term.opts.env,
       TERM: "xterm-256color",
       COLORTERM: "truecolor",
@@ -216,6 +246,7 @@ export class FxTerminals {
     term.backlog.push(data)
     term.backlogSize += data.length
     term.total += data.length
+    term.lastOutput = Date.now()
     while (term.backlogSize > BACKLOG_MAX && term.backlog.length > 1) term.backlogSize -= term.backlog.shift()!.length
     this.scanStatus(term, data)
     this.events.onData(term.id, data, term.total)

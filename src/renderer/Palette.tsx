@@ -19,6 +19,8 @@ type Item = {
 
 type Props = {
   state: AppState
+  /** Query to start with (`ctrl ui palette --query`) */
+  initialQuery?: string
   onClose(): void
   onOpen(sessionID: string): void
   onNew(spaceID: string | null): void
@@ -85,8 +87,8 @@ function matches(query: string, ...fields: (string | undefined)[]) {
     .every((token) => hay.includes(token))
 }
 
-export function Palette({ state, onClose, onOpen, onNew, onRevealSpace }: Props) {
-  const [query, setQuery] = useState("")
+export function Palette({ state, initialQuery = "", onClose, onOpen, onNew, onRevealSpace }: Props) {
+  const [query, setQuery] = useState(initialQuery)
   const [selected, setSelected] = useState(0)
   const input = useRef<HTMLInputElement>(null)
   const list = useRef<HTMLDivElement>(null)
