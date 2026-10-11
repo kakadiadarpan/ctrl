@@ -7,6 +7,8 @@ export const PROTOCOL_VERSION = 1
 
 /** Who is calling, read from the caller's environment, so the app can resolve `self`. */
 export type CallerContext = {
+  /** Set when an agent runs the CLI: its name, e.g. "opencode", "fx", "claude-code" (AI_AGENT and friends) */
+  agent?: string
   /** CTRL_TERM_ID: set in the fx ptys ctrl runs; the app maps it to the session that pty has now */
   termID?: string
   /** OPENCODE_SESSION_ID: set by opencode in its tool shells */

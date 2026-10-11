@@ -36,7 +36,7 @@ export type CommandSpec = {
   local?: boolean
   /** Replies with NDJSON lines until the connection closes */
   stream?: boolean
-  /** Changes state (visible to the user, undo toast where the UI has one) */
+  /** Changes state (visible to the user; an `undo` command in the reply where the UI would offer undo) */
   mutates?: boolean
 }
 
@@ -259,9 +259,9 @@ export const COMMANDS: CommandSpec[] = [
   },
   {
     name: "session archive",
-    summary: "Archives sessions (undo toast, ⌘Z)",
+    summary: "Archives sessions (reply has the `undo` command)",
     args: [{ ...session("Sessions (selectors as for <session>)"), list: true, placeholder: "<session>..." }],
-    returns: "{archived:[id], changed}",
+    returns: "{archived:[id], changed, undo?}",
     mutates: true,
   },
   {
@@ -429,17 +429,17 @@ export const COMMANDS: CommandSpec[] = [
   },
   {
     name: "space archive-all",
-    summary: "Archives every session in a space (undo toast)",
+    summary: "Archives every session in a space (reply has the `undo` command)",
     args: [space()],
-    returns: "{archived:[id]}",
+    returns: "{archived:[id], undo?}",
     mutates: true,
   },
   {
     name: "space delete",
-    summary: "Deletes a space; its sessions stay, in no space (undo toast)",
+    summary: "Deletes a space; its sessions stay, in no space (reply has the `undo` command)",
     details: ["Exact ids only."],
     args: [{ name: "id", type: "string", positional: true, required: true, placeholder: "<id>", description: "Exact space id" }],
-    returns: "{id}",
+    returns: "{id, undo}",
     mutates: true,
   },
 
@@ -668,6 +668,7 @@ export const OBJECTS: Record<string, string> = {
   directory: string
   spaceID: string | null     // null = in no space
   archived: number | null    // archived at (ms); null = not archived
+  createdByAgent: {agent: string, by: string | null, at: number} | null   // made by an agent with \`session new\`; by = its own session
   status: "needs-input" | "running" | "failed" | "unread" | "idle"
   statusDetail?: string      // e.g. "Waiting for permission: bash"
   updated: number            // ms

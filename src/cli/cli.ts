@@ -228,7 +228,18 @@ function parse(argv: string[]): { spec: CommandSpec; args: Record<string, unknow
 
 // ---------- talking to the app ----------
 
+/** Which agent runs this, from what agent harnesses set in their tool shells (docs/CLI.md → Environment). */
+const detectAgent = (env = process.env): string | undefined => {
+  if (env.AI_AGENT) return env.AI_AGENT
+  if (env.CLAUDECODE) return "claude-code"
+  if (env.CURSOR_AGENT) return "cursor"
+  if (env.CTRL_TERM_ID) return "fx"
+  if (env.AGENT && env.AGENT !== "0" && env.AGENT !== "false") return "agent"
+  return undefined
+}
+
 const caller = (): CallerContext => ({
+  agent: detectAgent(),
   termID: process.env.CTRL_TERM_ID || undefined,
   opencodeSessionID: process.env.OPENCODE_SESSION_ID || undefined,
   sessionID: process.env.CTRL_SESSION_ID || undefined,

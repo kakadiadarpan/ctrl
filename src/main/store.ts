@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname } from "node:path"
-import { DEFAULT_SOUND_CHOICES, FONT_SIZE, type Settings, type Space, type SpacePatch, type UiState } from "../shared/types"
+import { DEFAULT_SOUND_CHOICES, type AgentOrigin, FONT_SIZE, type Settings, type Space, type SpacePatch, type UiState } from "../shared/types"
 
 const DEFAULT_UI: UiState = {
   recentsCollapsed: false,
@@ -33,6 +33,8 @@ type Persisted = {
   assignments: Record<string, string>
   /** sessionID → archived-at timestamp */
   archived: Record<string, number>
+  /** sessionID → the agent that created it through the CLI */
+  createdByAgent: Record<string, AgentOrigin>
   ui: UiState
   settings: Settings
   /** fx sessions: end of the last turn you've seen (fx has no read state; opencode keeps its own) */
@@ -59,6 +61,7 @@ export class Store {
       spaces: [],
       assignments: {},
       archived: {},
+      createdByAgent: {},
       viewed: {},
       viewedSince: Date.now(),
       titles: {},
@@ -102,6 +105,11 @@ export class Store {
     this.save()
   }
 
+  setCreatedByAgent(sessionID: string, agent: string, by: string | null) {
+    this.data.createdByAgent[sessionID] = { agent, by, at: Date.now() }
+    this.save()
+  }
+
   private saveTimer?: ReturnType<typeof setTimeout>
 
   /** For values that change often (every switch, finished turn or resize): one write per second at most. */
@@ -138,6 +146,7 @@ export class Store {
   forgetSession(sessionID: string) {
     delete this.data.assignments[sessionID]
     delete this.data.archived[sessionID]
+    delete this.data.createdByAgent[sessionID]
     delete this.data.viewed[sessionID]
     delete this.data.titles[sessionID]
     this.save()

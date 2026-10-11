@@ -58,8 +58,10 @@ export type CliHost = {
   openSession(sessionID: string): void
   renameSession(sessionID: string, title: string): Promise<void>
   move(sessionID: string, spaceID: string | null): void
+  /** No toast: the CLI returns an undo command instead (principle 8) */
   archive(sessionIDs: string[]): void
   unarchive(sessionIDs: string[]): void
+  /** No toast, like archive */
   deleteSpace(spaceID: string): void
   createSpace(name: string): string
   changed(): void
@@ -106,6 +108,9 @@ const expandPath = (path: string, caller: CallerContext) => {
   return isAbsolute(p) ? p : resolve(caller.cwd || homedir(), p)
 }
 
+/** Quotes a value for the `undo` commands agents run in a POSIX shell. */
+const sh = (value: string) => (/^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`)
+
 const folder = (path: string, caller: CallerContext) => {
   const abs = expandPath(path, caller)
   if (!existsSync(abs) || !statSync(abs).isDirectory()) throw new CliError("NOT_FOUND", `No folder at ${abs}`)
@@ -122,6 +127,7 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
     directory: s.directory,
     spaceID: store.data.assignments[s.id] ?? null,
     archived: store.data.archived[s.id] ?? null,
+    createdByAgent: store.data.createdByAgent[s.id] ?? null,
     status: s.status,
     ...(s.statusDetail ? { statusDetail: s.statusDetail } : {}),
     updated: s.updated,
@@ -164,6 +170,17 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
       })
     }
     return id
+  }
+
+  /** Remembers that an agent created this session, and from which session when the caller runs in one. */
+  const markCreatedByAgent = (sessionID: string, caller: CallerContext) => {
+    if (!caller.agent) return
+    let by: string | null = null
+    try {
+      by = selfID(caller)
+    } catch {}
+    store.setCreatedByAgent(sessionID, caller.agent, by)
+    host.changed()
   }
 
   /** id, self, current or name:<title> → a session ctrl knows. */
@@ -260,6 +277,33 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
     if (args["ctrl-instructions"] !== undefined)
       patch.ctrlInstructions = args["ctrl-instructions"] === "default" ? null : args["ctrl-instructions"] === "on"
     return patch
+  }
+
+  /** Commands that recreate a space as it is now, settings and sessions included (`space delete`'s undo). */
+  const spaceUndo = (space: Space) => {
+    const sel = `name:${space.name}`
+    const flags = [
+      `--index ${store.data.spaces.indexOf(space)}`,
+      space.directory && `--directory ${sh(space.directory)}`,
+      space.harness && `--harness ${space.harness}`,
+      space.model && `--model ${sh(formatModel(space.model)!)}`,
+      space.fxModel && `--fx-model ${sh(formatModel(space.fxModel)!)}`,
+      space.modelEnabled === false && "--no-model-enabled",
+      space.instructions && `--instructions ${sh(space.instructions)}`,
+      space.ctrlInstructions !== undefined && `--ctrl-instructions ${space.ctrlInstructions ? "on" : "off"}`,
+    ].filter(Boolean)
+    const moves = Object.entries(store.data.assignments)
+      .filter(([, spaceID]) => spaceID === space.id)
+      .map(([sessionID]) => `ctrl session move ${sessionID} --space ${sh(sel)}`)
+    // Moving unarchives, so archived sessions get archived again.
+    const archived = Object.entries(store.data.assignments)
+      .filter(([sessionID, spaceID]) => spaceID === space.id && store.data.archived[sessionID])
+      .map(([sessionID]) => sessionID)
+    return [
+      `ctrl space create ${sh(space.name)} ${flags.join(" ")}`,
+      ...moves,
+      ...(archived.length ? [`ctrl session archive ${archived.join(" ")}`] : []),
+    ].join(" && ")
   }
 
   const page = <T>(items: T[], args: Record<string, any>) => {
@@ -546,11 +590,13 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
           () => undefined,
         )
         if (!id) return created
+        markCreatedByAgent(id, req.caller)
         if (args.title) await host.renameSession(id, args.title)
         const s = await waitFor(() => byID(id), 5000, "the session to show up").catch(() => undefined)
         if (s && args.prompt) await started(id, sentAt)
         return s ? sessionView(byID(id) ?? s) : { id, pending: true }
       }
+      markCreatedByAgent(created.id, req.caller)
       if (args.title) await host.renameSession(created.id, args.title)
       const s = await waitFor(() => byID(created.id), 5000, "the session to show up")
       if (args.prompt) {
@@ -588,7 +634,7 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
       const ids = [...new Set((args.session as string[]).map((sel) => resolveSession(sel, req.caller).id))]
       const todo = ids.filter((id) => !store.data.archived[id])
       if (todo.length) host.archive(todo)
-      return { archived: ids, changed: todo.length > 0 }
+      return { archived: ids, changed: todo.length > 0, ...(todo.length ? { undo: `ctrl session unarchive ${todo.join(" ")}` } : {}) }
     },
     "session unarchive": (args, req) => {
       const ids = [...new Set((args.session as string[]).map((sel) => resolveSession(sel, req.caller).id))]
@@ -735,13 +781,15 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
         .filter((s) => store.data.assignments[s.id] === space.id && !store.data.archived[s.id])
         .map((s) => s.id)
       if (ids.length) host.archive(ids)
-      return { archived: ids }
+      return { archived: ids, ...(ids.length ? { undo: `ctrl session unarchive ${ids.join(" ")}` } : {}) }
     },
     "space delete": (args) => {
       const id = String(args.id)
-      if (!store.space(id)) throw new CliError("NOT_FOUND", `No space ${id}`, { hint: "Deletes take an exact id (ctrl space list)" })
+      const space = store.space(id)
+      if (!space) throw new CliError("NOT_FOUND", `No space ${id}`, { hint: "Deletes take an exact id (ctrl space list)" })
+      const undo = spaceUndo(space)
       host.deleteSpace(id)
-      return { id }
+      return { id, undo }
     },
 
     // ----- settings -----

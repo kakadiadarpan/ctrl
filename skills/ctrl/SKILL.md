@@ -57,6 +57,10 @@ Don't guess flags: read `help` first. The most used ones:
 - Check `ok`. On errors, read `error.code` and follow `error.hint`; `AMBIGUOUS` lists `candidates`
   (retry with an id).
 - Don't change what's on screen (`focus`, `--focus`, `ui …`) unless the user asked for it.
-- You can't delete sessions, only archive them (`session archive`, reversible, the user gets an undo
-  toast). If the user wants a session deleted, tell them to do it from ctrl's sidebar.
+- You can't delete sessions, only archive them (`session archive`, reversible). If the user wants a
+  session deleted, tell them to do it from ctrl's sidebar.
+- The CLI shows the user no toasts. Replies to archive, archive-all and space delete carry an `undo`
+  command: mention it to the user ("you can undo this with …") or run it if they ask.
+- Run it through `ctrl.sh`, or with `AI_AGENT=<your name>` set, so sessions you create are marked as made
+  by an agent (opencode sets `AI_AGENT` for you).
 - Use `--fields id,title` on lists to keep output small.

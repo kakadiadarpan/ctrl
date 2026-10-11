@@ -58,6 +58,8 @@ where it lives.
 - Archive / unarchive: hover button, right-click, ⌘W, or "Archive all sessions" on a space. Stored in
   ctrl's `state.json`, opencode is untouched (`src/main/store.ts`)
 - **Recents**: every non-archived session, newest first, 10 at a time with Show more, foldable (state saved)
+- **Created by an agent**: sessions an agent makes with `ctrl session new` show a small bot icon, and the
+  tooltip names the agent and the session it ran in. Stored in `state.json` (`createdByAgent`), returned by the CLI
 - **Archived**: most recently archived first, 10 at a time with Show more, foldable (state saved)
 - Status per row, most urgent first: needs input (permission / question), running, failed (unread),
   finished (unread), otherwise time since last update (`src/renderer/StatusIcon.tsx`). fx: from OSC 7501
@@ -156,7 +158,12 @@ where it lives.
 - Search, resources, models, MCP servers, skills, app status / launch / updates, and an NDJSON `events` stream
 - Selectors: `self` (the calling session, via `OPENCODE_SESSION_ID` or ctrl's `CTRL_TERM_ID` in fx ptys),
   `current`, `name:<title>`; ambiguous names list candidates
-- Agents can't delete sessions, only archive them (reversible, with the same undo toast as the UI); nothing
+- Sessions an agent creates are marked `createdByAgent: {agent, by, at}` (by = the agent's own session, via
+  `self`). Agents are detected from the env their harness sets (`AI_AGENT`, `AGENT=1`, `CLAUDECODE`,
+  `CURSOR_AGENT`, ctrl's `CTRL_TERM_ID` for fx); ctrl strips those from the terminals it spawns
+- No toasts for CLI actions: archive, archive-all and space delete reply with an `undo` command instead;
+  only `ui toast` shows one
+- Agents can't delete sessions, only archive them (reversible, the reply's `undo` brings them back); nothing
   changes the screen without `--focus` / `focus`
 - Unix socket in the state folder (0600), one per ctrl (dev and test runs get their own); stale sockets
   cleaned at launch (`src/main/cli-server.ts`)

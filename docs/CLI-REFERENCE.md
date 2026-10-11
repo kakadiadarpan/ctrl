@@ -238,7 +238,7 @@ ctrl session move <session> --space <space>
 
 ### session archive
 
-Archives sessions (undo toast, ⌘Z) *(changes state)*
+Archives sessions (reply has the `undo` command) *(changes state)*
 
 ```text
 ctrl session archive <session>...
@@ -248,7 +248,7 @@ ctrl session archive <session>...
 |---|---|
 | `<session>...` | Sessions (selectors as for <session>) · required |
 
-**Returns:** `{archived:[id], changed}`
+**Returns:** `{archived:[id], changed, undo?}`
 
 ### session unarchive
 
@@ -525,7 +525,7 @@ ctrl space unfold <space>
 
 ### space archive-all
 
-Archives every session in a space (undo toast) *(changes state)*
+Archives every session in a space (reply has the `undo` command) *(changes state)*
 
 ```text
 ctrl space archive-all <space>
@@ -535,11 +535,11 @@ ctrl space archive-all <space>
 |---|---|
 | `<space>` | Space: id, `name:<name>` or `current` (the space of the session on screen) · required |
 
-**Returns:** `{archived:[id]}`
+**Returns:** `{archived:[id], undo?}`
 
 ### space delete
 
-Deletes a space; its sessions stay, in no space (undo toast) *(changes state)*
+Deletes a space; its sessions stay, in no space (reply has the `undo` command) *(changes state)*
 
 ```text
 ctrl space delete <id>
@@ -551,7 +551,7 @@ ctrl space delete <id>
 |---|---|
 | `<id>` | Exact space id · required |
 
-**Returns:** `{id}`
+**Returns:** `{id, undo}`
 
 ### settings list
 
@@ -885,6 +885,7 @@ ctrl events [--type <type>...] [--session <session>...]
   directory: string
   spaceID: string | null     // null = in no space
   archived: number | null    // archived at (ms); null = not archived
+  createdByAgent: {agent: string, by: string | null, at: number} | null   // made by an agent with `session new`; by = its own session
   status: "needs-input" | "running" | "failed" | "unread" | "idle"
   statusDetail?: string      // e.g. "Waiting for permission: bash"
   updated: number            // ms
