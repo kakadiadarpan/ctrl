@@ -13,7 +13,7 @@
 - **settings**: [`settings list`](#settings-list) · [`settings get`](#settings-get) · [`settings set`](#settings-set) · [`settings reset`](#settings-reset)
 - **ui**: [`ui get`](#ui-get) · [`ui home`](#ui-home) · [`ui window`](#ui-window) · [`ui resources`](#ui-resources) · [`ui sidebar`](#ui-sidebar) · [`ui section`](#ui-section) · [`ui settings`](#ui-settings) · [`ui palette`](#ui-palette) · [`ui toast`](#ui-toast)
 - **search**: [`search`](#search)
-- **resources**: [`resources list`](#resources-list)
+- **resources**: [`resources list`](#resources-list) · [`resources refresh`](#resources-refresh)
 - **models**: [`models list`](#models-list)
 - **mcp**: [`mcp list`](#mcp-list) · [`mcp reconnect`](#mcp-reconnect)
 - **skill**: [`skill status`](#skill-status) · [`skill install`](#skill-install) · [`skill uninstall`](#skill-uninstall)
@@ -763,17 +763,58 @@ ctrl search <query>... [--limit <n>] [--archived]
 Links shared in sessions (PRs, issues, Linear, Slack, Vercel, …) and referenced sessions, most recent first
 
 ```text
-ctrl resources list [--session <session>...] [--space <space>] [--type <type>...] [--limit <n>]
+ctrl resources list [--session <session>...] [--space <space>] [--type <type>...] [--limit <n>] [--cached] [--wait <n>]
 ```
+
+- Live details (`live`, with plain values in `live.fields`) are fetched like the resources panel does: only what's due by each adapter's cache policy (never fetched, mentioned again since, or past its max age; merged PRs never again), only for the returned items, through the service's own CLI (gh, vercel, slack-cli).
+- Waits up to --wait ms for those fetches. Items still fetching come back with `pending: true` and their cached details; the next call has them.
+- `errors` lists adapters that couldn't fetch (rate limited, CLI not installed or logged in), with `retryAt` or the `hint` that fixes it.
+- --cached answers from the cache right away, without fetching. `resources refresh` refetches regardless of the cache.
 
 | Argument | Meaning |
 |---|---|
 | `--session <session>` | Sessions (repeatable; default `current`) · repeatable |
 | `--space <space>` | Every session in this space instead |
 | `--type <type>` | Only these link types, e.g. github-pr (repeatable) · repeatable |
-| `--limit <n>` | Max items · default: 100 |
+| `--limit <n>` | Max items (max 500) · default: 100 |
+| `--cached / --no-cached` | Don't fetch: cached live details only, instant |
+| `--wait <n>` | Most ms to wait for live details (max 60000; raise --timeout past it) · default: 5000 |
 
-**Returns:** `{items:[Resource]}`
+**Returns:** `{items:[Resource], errors:[{adapter, state, message, retryAt?, hint?}]}`
+
+```bash
+ctrl resources list --space self --type github-pr --fields id,title,live,pending
+ctrl resources list --session self --cached
+```
+
+### resources refresh
+
+Refetches live details now, ignoring the cache
+
+```text
+ctrl resources refresh [<id|url>...] [--session <session>...] [--space <space>] [--type <type>...] [--limit <n>] [--wait <n>]
+```
+
+- For when cached details look stale (a PR you know just merged). `resources list` already fetches what's due, so this is rarely needed.
+- Pass resource ids (as `resources list` returns them) or URLs, or a scope like `resources list`. Rate-limit pauses still apply: those adapters show up in `errors` with `retryAt`.
+- The panel shows the new details too: it shares the cache.
+
+| Argument | Meaning |
+|---|---|
+| `[<id\|url>...]` | Resources to refetch (default: the scope below) |
+| `--session <session>` | Without ids: these sessions' resources (repeatable; default `current`) · repeatable |
+| `--space <space>` | Without ids: every session in this space instead |
+| `--type <type>` | Only these link types (repeatable) · repeatable |
+| `--limit <n>` | Max items (max 500) · default: 100 |
+| `--wait <n>` | Most ms to wait (max 60000; raise --timeout past it) · default: 10000 |
+
+**Returns:** `{items:[Resource], errors:[{adapter, state, message, retryAt?, hint?}]}`
+
+```bash
+ctrl resources refresh github-pr:vercel/next.js#99932
+ctrl resources refresh https://github.com/vercel/next.js/pull/99932
+ctrl resources refresh --space self --type github-pr
+```
 
 ### models list
 
@@ -929,7 +970,17 @@ ctrl events [--type <type>...] [--session <session>...]
   first: number, last: number
   sharedByYou: boolean       // pasted in a prompt (vs only mentioned by the agent)
   session?: Session | null   // type "session": the referenced session (archived ones too), null once deleted
-  live?: {title?, subtitle?, tone?, chips?, missing?, fetched}   // cached live details, when its adapter has them
+  live?: {title?, subtitle?, tone?, chips?, details?, fields?, missing?, fetched}   // live details, when its adapter has them
+  // live.fields: the same details as plain values (null = unknown):
+  //   github-pr      {state: open|closed|merged, draft, ci: success|failure|pending, review: approved|changes_requested|review_required,
+  //                   mergeable: mergeable|conflicting|unknown, author, additions, deletions}
+  //   github-issue   {state: open|closed, stateReason, author}
+  //   github-commit  {ci, author}
+  //   github-repo    {archived, description}
+  //   vercel-deployment {state: ready|error|canceled|building|initializing|queued, target, url, branch, commit, creator}
+  //   vercel-project {framework, productionState, productionUrl, productionCommit}
+  //   slack-thread   {channel, author, text}      slack-channel {channel}
+  pending?: true             // still being fetched when --wait ran out; live is the cached version, if any
 }
 ```
 

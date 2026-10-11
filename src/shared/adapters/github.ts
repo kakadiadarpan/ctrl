@@ -129,9 +129,22 @@ const ciChip = (ci: Ci) =>
 const by = (login?: string) => (login ? `by @${login}` : undefined)
 const line = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(" · ")
 
+/** GraphQL enums as agents read them: "CHANGES_REQUESTED" → "changes_requested", null when absent. */
+const lower = (value?: string | null) => (value ? value.toLowerCase() : null)
+
 function pullRequest(n: Node, ref: string): Fetched {
   const ci = ciOf(n.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state)
-  const meta = { title: n.title, subtitle: ref, details: [line(by(n.author?.login), `+${n.additions} −${n.deletions}`)] }
+  const fields = {
+    state: lower(n.state),
+    draft: !!n.isDraft,
+    ci: ci ?? null,
+    review: lower(n.reviewDecision),
+    mergeable: n.state === "OPEN" ? lower(n.mergeable) : null,
+    author: n.author?.login ?? null,
+    additions: n.additions ?? null,
+    deletions: n.deletions ?? null,
+  }
+  const meta = { title: n.title, subtitle: ref, details: [line(by(n.author?.login), `+${n.additions} −${n.deletions}`)], fields }
   // Merged is final; closed PRs can be reopened.
   if (n.state === "MERGED") return { meta: { ...meta, tone: "done", chips: [chip("merged", "done", "Merged")] }, cache: FINAL }
   if (n.state === "CLOSED") return { meta: { ...meta, tone: "bad", chips: [chip("closed", "bad", "Closed")] }, cache: every(DAY) }
@@ -157,7 +170,13 @@ function issue(n: Node, ref: string): Fetched {
   const tone: Tone = open ? "open" : notPlanned ? "muted" : "done"
   const state = open ? "Open" : notPlanned ? "Closed as not planned" : "Closed as completed"
   return {
-    meta: { title: n.title, subtitle: ref, tone, details: [line(state, by(n.author?.login))] },
+    meta: {
+      title: n.title,
+      subtitle: ref,
+      tone,
+      details: [line(state, by(n.author?.login))],
+      fields: { state: lower(n.state), stateReason: lower(n.stateReason), author: n.author?.login ?? null },
+    },
     cache: every(open ? 10 * MINUTE : DAY),
   }
 }
@@ -173,6 +192,7 @@ function commit(c: Node, ref: string): Fetched {
       tone: ci ? ciTone[ci] : undefined,
       chips: chips([ciChip(ci)]),
       details: author ? [author] : undefined,
+      fields: { ci: ci ?? null, author: c.author?.user?.login ?? c.author?.name ?? null },
     },
     // A commit only changes while its CI runs.
     cache: ci === "pending" ? every(MINUTE) : FINAL,
@@ -183,6 +203,7 @@ const repo = (r: Node): Fetched => ({
   meta: {
     subtitle: r.description || undefined,
     chips: r.isArchived ? [chip("archived", "muted", "Archived repository")] : undefined,
+    fields: { archived: !!r.isArchived, description: r.description || null },
   },
   cache: every(7 * DAY),
 })

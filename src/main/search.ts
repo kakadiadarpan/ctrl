@@ -60,6 +60,10 @@ export class Search {
     return this.resourceReader?.list(sessionIDs) ?? []
   }
 
+  resourcesByID(ids: string[]): ResourceItem[] {
+    return this.resourceReader?.byIDs(ids) ?? []
+  }
+
   stop() {
     this.stopped = true
     this.child?.kill()

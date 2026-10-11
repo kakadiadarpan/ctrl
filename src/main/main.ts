@@ -1296,6 +1296,13 @@ const cliHost: CliHost = {
       .resources(ids)
       .filter((r) => adapters.shows(r.type))
       .map((r) => ({ ...r, meta: adapters.get(r) })),
+  resourcesByID: (ids) =>
+    search
+      .resourcesByID(ids)
+      .filter((r) => adapters.shows(r.type))
+      .map((r) => ({ ...r, meta: adapters.get(r) })),
+  fetchResources: (items, opts) => adapters.request(items, opts),
+  resourceMeta: (item) => adapters.get(item),
   models: (harness, directory) => (harness === "fx" ? listFxModels() : opencode.listModels(directory)),
   mcp: () => opencode.mcp,
   reconnectMcp: (name) => opencode.reconnectMcp(name),

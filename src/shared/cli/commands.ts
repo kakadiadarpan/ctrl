@@ -576,13 +576,48 @@ export const COMMANDS: CommandSpec[] = [
   {
     name: "resources list",
     summary: "Links shared in sessions (PRs, issues, Linear, Slack, Vercel, …) and referenced sessions, most recent first",
+    details: [
+      "Live details (`live`, with plain values in `live.fields`) are fetched like the resources panel does: only what's due by each adapter's cache policy (never fetched, mentioned again since, or past its max age; merged PRs never again), only for the returned items, through the service's own CLI (gh, vercel, slack-cli).",
+      "Waits up to --wait ms for those fetches. Items still fetching come back with `pending: true` and their cached details; the next call has them.",
+      "`errors` lists adapters that couldn't fetch (rate limited, CLI not installed or logged in), with `retryAt` or the `hint` that fixes it.",
+      "--cached answers from the cache right away, without fetching. `resources refresh` refetches regardless of the cache.",
+    ],
     args: [
       { name: "session", type: "string", list: true, description: "Sessions (repeatable; default `current`)" },
       { name: "space", type: "string", description: "Every session in this space instead" },
       { name: "type", type: "string", list: true, description: "Only these link types, e.g. github-pr (repeatable)" },
-      { name: "limit", type: "int", default: 100, description: "Max items" },
+      { name: "limit", type: "int", default: 100, description: "Max items (max 500)" },
+      { name: "cached", type: "bool", description: "Don't fetch: cached live details only, instant" },
+      { name: "wait", type: "int", default: 5000, description: "Most ms to wait for live details (max 60000; raise --timeout past it)" },
     ],
-    returns: "{items:[Resource]}",
+    returns: "{items:[Resource], errors:[{adapter, state, message, retryAt?, hint?}]}",
+    examples: [
+      "ctrl resources list --space self --type github-pr --fields id,title,live,pending",
+      "ctrl resources list --session self --cached",
+    ],
+  },
+  {
+    name: "resources refresh",
+    summary: "Refetches live details now, ignoring the cache",
+    details: [
+      "For when cached details look stale (a PR you know just merged). `resources list` already fetches what's due, so this is rarely needed.",
+      "Pass resource ids (as `resources list` returns them) or URLs, or a scope like `resources list`. Rate-limit pauses still apply: those adapters show up in `errors` with `retryAt`.",
+      "The panel shows the new details too: it shares the cache.",
+    ],
+    args: [
+      { name: "resource", type: "string", positional: true, list: true, placeholder: "[<id|url>...]", description: "Resources to refetch (default: the scope below)" },
+      { name: "session", type: "string", list: true, description: "Without ids: these sessions' resources (repeatable; default `current`)" },
+      { name: "space", type: "string", description: "Without ids: every session in this space instead" },
+      { name: "type", type: "string", list: true, description: "Only these link types (repeatable)" },
+      { name: "limit", type: "int", default: 100, description: "Max items (max 500)" },
+      { name: "wait", type: "int", default: 10000, description: "Most ms to wait (max 60000; raise --timeout past it)" },
+    ],
+    returns: "{items:[Resource], errors:[{adapter, state, message, retryAt?, hint?}]}",
+    examples: [
+      "ctrl resources refresh github-pr:vercel/next.js#99932",
+      "ctrl resources refresh https://github.com/vercel/next.js/pull/99932",
+      "ctrl resources refresh --space self --type github-pr",
+    ],
   },
   {
     name: "models list",
@@ -702,7 +737,17 @@ export const OBJECTS: Record<string, string> = {
   first: number, last: number
   sharedByYou: boolean       // pasted in a prompt (vs only mentioned by the agent)
   session?: Session | null   // type "session": the referenced session (archived ones too), null once deleted
-  live?: {title?, subtitle?, tone?, chips?, missing?, fetched}   // cached live details, when its adapter has them
+  live?: {title?, subtitle?, tone?, chips?, details?, fields?, missing?, fetched}   // live details, when its adapter has them
+  // live.fields: the same details as plain values (null = unknown):
+  //   github-pr      {state: open|closed|merged, draft, ci: success|failure|pending, review: approved|changes_requested|review_required,
+  //                   mergeable: mergeable|conflicting|unknown, author, additions, deletions}
+  //   github-issue   {state: open|closed, stateReason, author}
+  //   github-commit  {ci, author}
+  //   github-repo    {archived, description}
+  //   vercel-deployment {state: ready|error|canceled|building|initializing|queued, target, url, branch, commit, creator}
+  //   vercel-project {framework, productionState, productionUrl, productionCommit}
+  //   slack-thread   {channel, author, text}      slack-channel {channel}
+  pending?: true             // still being fetched when --wait ran out; live is the cached version, if any
 }`,
 }
 

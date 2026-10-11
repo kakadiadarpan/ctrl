@@ -133,6 +133,14 @@ function deployment(d: Json, req: MetaRequest): Fetched {
     tone: state?.tone,
     chips: chips([prod && chip("prod", "muted", "Production deployment"), state && chip(state.label, state.tone)]),
     details: d.creator?.username ? [`by @${d.creator.username}`] : undefined,
+    fields: {
+      state: d.readyState ? String(d.readyState).toLowerCase() : null,
+      target: d.target ?? "preview",
+      url: d.url ?? null,
+      branch: branch ?? null,
+      commit: commitMessage(d.meta) ?? null,
+      creator: d.creator?.username ?? null,
+    },
   }
   if (BUSY.has(d.readyState)) return { meta, cache: every(15 * SECOND) }
   // A deployment id never changes once built; a host can be an alias that moves to newer deployments.
@@ -149,6 +157,12 @@ function project(p: Json, req: MetaRequest): Fetched {
       tone: state?.tone,
       chips: chips([state && chip(state.label, state.tone, "Latest production deployment")]),
       details: prod ? [`Latest production: ${commitMessage(prod.meta) ?? prod.url}`] : undefined,
+      fields: {
+        framework: p.framework ?? null,
+        productionState: prod?.readyState ? String(prod.readyState).toLowerCase() : null,
+        productionUrl: prod?.url ?? null,
+        productionCommit: commitMessage(prod?.meta) ?? null,
+      },
     },
     cache: every(prod && BUSY.has(prod.readyState) ? 15 * SECOND : 5 * MINUTE),
   }
