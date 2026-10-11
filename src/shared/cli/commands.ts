@@ -88,6 +88,12 @@ const spaceSettingFlags: ArgSpec[] = [
     type: "string",
     description: "Instructions attached to new opencode sessions; \"\" clears them. `-` reads stdin",
   },
+  {
+    name: "ctrl-instructions",
+    type: "enum",
+    values: ["on", "off", "default"],
+    description: "ctrl instruction on this space's opencode sessions; `default` follows the app setting (ctrlInstructions)",
+  },
 ]
 
 export const COMMANDS: CommandSpec[] = [
@@ -681,6 +687,7 @@ export const OBJECTS: Record<string, string> = {
   fxModel: string | null     // fx model ref, "<model>[#<effort>]"
   modelEnabled: boolean
   instructions: string | null
+  ctrlInstructions: boolean | null   // ctrl instruction on its opencode sessions; null = app setting
   sessions: number           // non-archived sessions in it
   status: Session["status"]  // most urgent of its sessions
 }`,

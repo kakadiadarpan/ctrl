@@ -43,6 +43,11 @@ export const SETTING_KEYS: SettingKey[] = [
     type: { kind: "model", harness: "fx" },
     description: "fx model for new sessions, used when defaultModelEnabled",
   },
+  {
+    key: "ctrlInstructions",
+    type: { kind: "bool" },
+    description: "Invisible instruction on opencode sessions: tells the agent it runs in ctrl and how to look around with the ctrl CLI; spaces can override",
+  },
   { key: "dockBadge", type: { kind: "bool" }, description: "Dock badge with the sessions waiting on you" },
   {
     key: "notifications",

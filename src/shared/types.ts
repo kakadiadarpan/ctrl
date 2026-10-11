@@ -31,6 +31,8 @@ export type Space = {
   modelEnabled?: boolean
   /** Extra instructions attached to every new opencode session in this space (fx has no way to take them) */
   instructions?: string
+  /** ctrl instruction (CTRL_INSTRUCTIONS) on this space's opencode sessions; unset = the app setting */
+  ctrlInstructions?: boolean
 }
 
 export type ModelOption = ModelRef & {
@@ -59,6 +61,7 @@ export type SpacePatch = {
   fxModel?: ModelRef | null
   modelEnabled?: boolean
   instructions?: string | null
+  ctrlInstructions?: boolean | null
 }
 
 /** Ordered by urgency: the first one that applies wins. */
@@ -144,6 +147,8 @@ export type Settings = {
   defaultFxModel: ModelRef | null
   /** Off: ctrl passes no model and the harness's own default applies */
   defaultModelEnabled: boolean
+  /** Attach the ctrl instruction (CTRL_INSTRUCTIONS) to opencode sessions; spaces can override */
+  ctrlInstructions: boolean
   /** Rebound shortcuts; commands not listed use their defaults */
   shortcuts: ShortcutOverrides
   /** Per resource adapter id; adapters not listed use defaultAdapterMode */

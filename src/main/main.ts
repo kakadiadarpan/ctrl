@@ -172,11 +172,23 @@ const state = (): AppState => ({
 let pushQueued = false
 /** CLI waiters and event streams (src/main/cli-handlers.ts), told after every state change. */
 const changeListeners = new Set<() => void>()
+/** The space's choice, else the app setting. */
+const ctrlInstructionsOn = (spaceID: string | null | undefined) =>
+  (spaceID ? store.space(spaceID)?.ctrlInstructions : undefined) ?? store.data.settings.ctrlInstructions
+
+/** Every push: opening a session, moving it, or changing the setting all end here. Free unless it changed. */
+const syncCtrlInstructions = () => {
+  const id = currentSessionID()
+  if (!id || !opencodeStarted || harnessOf(id) !== "opencode") return
+  void opencode.syncCtrlInstructions(id, ctrlInstructionsOn(store.data.assignments[id]))
+}
+
 const push = () => {
   if (pushQueued) return
   pushQueued = true
   queueMicrotask(() => {
     pushQueued = false
+    syncCtrlInstructions()
     attention.refreshBadge(sessions)
     send("state", state())
     for (const cb of [...changeListeners]) {
@@ -601,7 +613,7 @@ const newSession = async (
   }
   if (!opencodeStarted)
     throw new CliError("HARNESS_MISSING", "opencode isn't installed, so ctrl can't start an opencode session")
-  const id = await opencode.createSession(cwd, { model, instructions: space?.instructions })
+  const id = await opencode.createSession(cwd, { model, instructions: space?.instructions, ctrl: ctrlInstructionsOn(spaceID) })
   if (spaceID) store.assign(id, spaceID)
   if (focus) openSession(id)
   else push()
