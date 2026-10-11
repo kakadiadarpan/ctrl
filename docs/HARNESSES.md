@@ -31,7 +31,7 @@ so ctrl keeps a process per open session and reads its files and terminal output
 |---|---|---|---|
 | Sessions in the sidebar, spaces, Recents | ✅ | ✅ | |
 | Mix both kinds in one space | ✅ | ✅ | |
-| Archive / unarchive | ✅ | ✅ | ctrl-side, the harness is untouched |
+| Archive / unarchive | ✅ | ✅ | ctrl-side; archiving also marks the session read |
 | Move between spaces, drag and drop | ✅ | ✅ | |
 | ⌘1–9 jump, ⌘P title search | ✅ | ✅ | |
 | ⌘P message search | ✅ | ✅ | opencode: through the service · fx: tails `events.jsonl` |

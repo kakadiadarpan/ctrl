@@ -165,7 +165,9 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
         <span className="label">{s.title}</span>
         {hints?.has(s.id) ? (
           <kbd className="jump-hint">⌘{hints.get(s.id)}</kbd>
-        ) : s.status === "idle" ? (
+        ) : s.status === "idle" ||
+          // Archived sessions only flag what's live (running, needs you), not unread/failed.
+          (state.archived[s.id] && (s.status === "unread" || s.status === "failed")) ? (
           <span className="meta">{age(s.updated)}</span>
         ) : (
           <StatusIcon status={s.status} />

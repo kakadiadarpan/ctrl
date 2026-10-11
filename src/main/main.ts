@@ -787,6 +787,11 @@ const archive = (sessionIDs: string[], { toast: withToast = true } = {}) => {
   const wasCurrent = current && ids.includes(current) ? current : null
   store.setArchived(ids, true)
   if (wasCurrent) leave(wasCurrent)
+  // Archiving counts as seeing it: no blue/red dot left behind if it comes back.
+  for (const id of ids) {
+    if (harnessOf(id) === "fx") markFxViewed(id)
+    else void opencode.markViewed(id)
+  }
   // Archived fx sessions don't need a process, unless they're busy.
   for (const id of ids) {
     if (harnessOf(id) !== "fx") continue

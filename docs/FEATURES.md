@@ -56,7 +56,8 @@ where it lives.
   to the Trash
 - fx: right-click → Reveal session folder, Quit fx process
 - Archive / unarchive: hover button, right-click, ⌘W, or "Archive all sessions" on a space. Stored in
-  ctrl's `state.json`, opencode is untouched (`src/main/store.ts`)
+  ctrl's `state.json`, opencode is untouched (`src/main/store.ts`) apart from archiving marking the session
+  read. Archived rows never show the unread / failed dot
 - **Recents**: every non-archived session, newest first, 10 at a time with Show more, foldable (state saved)
 - **Created by an agent**: sessions an agent makes with `ctrl session new` show a small bot icon, and the
   tooltip names the agent and the session it ran in. Stored in `state.json` (`createdByAgent`), returned by the CLI
