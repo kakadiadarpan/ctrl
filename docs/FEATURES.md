@@ -161,7 +161,9 @@ where it lives.
 - Sessions an agent creates are marked `createdByAgent: {agent, by, at}` (by = the agent's own session, via
   `self`). Agents are detected from the env their harness sets (`AI_AGENT`, `AGENT=1`, `CLAUDECODE`,
   `CURSOR_AGENT`, ctrl's `CTRL_TERM_ID` for fx); ctrl strips those from the terminals it spawns
-- Agents can't delete sessions, only archive them (reversible, with the same undo toast as the UI); nothing
+- No toasts for CLI actions: archive, archive-all and space delete reply with an `undo` command instead;
+  only `ui toast` shows one
+- Agents can't delete sessions, only archive them (reversible, the reply's `undo` brings them back); nothing
   changes the screen without `--focus` / `focus`
 - Unix socket in the state folder (0600), one per ctrl (dev and test runs get their own); stale sockets
   cleaned at launch (`src/main/cli-server.ts`)

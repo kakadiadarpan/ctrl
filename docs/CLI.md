@@ -32,22 +32,28 @@ Every command, flag and output follows these. Check new commands against this li
 5. **Errors that explain the fix.** Every error has a stable `code`, a one-line `message`, and usually a
    `hint` with the next command to run. Ambiguous names and typos return `candidates`.
 6. **Same behavior as the UI.** A command calls the same main-process function the sidebar does, so it
-   behaves the same whether you click or an agent runs it: undo toasts, harness rules, space settings.
+   behaves the same whether you click or an agent runs it: harness rules, space settings. The one difference
+   is feedback: the UI answers with toasts, the CLI with its reply (principle 8).
 7. **Never yank the user's screen by default.** Creating or changing things doesn't switch the view. Only
    `focus` (or `--focus`) changes what's on screen, and only `--raise` brings the window forward.
-8. **The user stays in control.** Agents can't delete sessions: there's no command for it, only archiving,
-   which is always reversible. Archive and archive-all raise the same undo toast as the UI, so ⌘Z undoes what
-   an agent did. Deleting stays a human action in the sidebar. `space delete` exists because sessions survive
-   it (they go back to no space, with an undo toast), and it only takes an exact id.
-9. **Idempotent where it can be.** Archiving an archived session, moving a session where it already is, or
-   setting a setting to its current value succeeds with `"changed":false`. Retrying is safe.
-10. **Bounded.** Lists are paged (`--limit`, default 50, max 500, `next` cursor). No command returns
+8. **Feedback goes in the reply, not in toasts.** The agent asked, so the agent gets the answer: commands
+   don't raise toasts, even where the UI would. When the UI would offer undo (archive, archive-all, space
+   delete), the reply has an `undo` field with the exact command to reverse it, e.g.
+   `"undo":"ctrl session unarchive ses_a ses_b"`, so the agent can tell the user or run it. The only toast
+   is one an agent asks for on purpose with `ui toast`.
+9. **The user stays in control.** Agents can't delete sessions: there's no command for it, only archiving,
+   which is always reversible. Deleting stays a human action in the sidebar. `space delete` exists because
+   sessions survive it (they go back to no space, and its `undo` recreates the space), and it only takes an
+   exact id.
+10. **Idempotent where it can be.** Archiving an archived session, moving a session where it already is, or
+    setting a setting to its current value succeeds with `"changed":false`. Retrying is safe.
+11. **Bounded.** Lists are paged (`--limit`, default 50, max 500, `next` cursor). No command returns
     unbounded output or makes main do work proportional to total history
     ([ARCHITECTURE.md → Principles](ARCHITECTURE.md#principles)).
-11. **Fast.** In-memory reads answer in milliseconds. Handlers never block main, which relays every
+12. **Fast.** In-memory reads answer in milliseconds. Handlers never block main, which relays every
     keystroke of the terminals: anything slow is async (opencode service calls) or runs in a child process
     (`session read`).
-12. **Explicit about harnesses.** When opencode and fx behave differently, the command's `harness` notes say
+13. **Explicit about harnesses.** When opencode and fx behave differently, the command's `harness` notes say
     how ([HARNESSES.md](HARNESSES.md)). Something a harness can't do fails with `UNSUPPORTED_HARNESS` or
     `CONFLICT` instead of quietly doing less.
 
@@ -101,7 +107,7 @@ Wherever a command takes a session or a space, it also takes a selector:
 
 - Ambiguous `name:` matches fail with `AMBIGUOUS` and list `candidates`; retry with an id.
 - `self` outside a session ctrl runs fails with `NO_SELF`.
-- `space delete` only takes an exact id. There's no `session delete` (principle 8).
+- `space delete` only takes an exact id. There's no `session delete` (principle 9).
 
 ## Output
 

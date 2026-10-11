@@ -779,7 +779,8 @@ const latestUndo = () => {
   return [...undos].reverse().find(([, u]) => u.expires > now)?.[0]
 }
 
-const archive = (sessionIDs: string[]) => {
+/** `toast: false` for the CLI, which hands the agent an undo command instead (docs/CLI.md, principle 8). */
+const archive = (sessionIDs: string[], { toast: withToast = true } = {}) => {
   const ids = sessionIDs.filter((id) => !store.data.archived[id])
   if (!ids.length) return
   const current = currentSessionID()
@@ -793,6 +794,7 @@ const archive = (sessionIDs: string[]) => {
     if (status !== "working" && status !== "blocked") fxTerms.closeSession(id)
   }
   push()
+  if (!withToast) return
   const title = ids.length === 1 ? sessionByID(ids[0])?.title : undefined
   toast(
     {
@@ -870,7 +872,7 @@ const commitDelete = async (sessionID: string) => {
   }
 }
 
-const deleteSpace = (id: string) => {
+const deleteSpace = (id: string, { toast: withToast = true } = {}) => {
   const index = store.data.spaces.findIndex((s) => s.id === id)
   const space = store.data.spaces[index]
   if (!space) return
@@ -879,6 +881,7 @@ const deleteSpace = (id: string) => {
     .map(([sessionID]) => sessionID)
   store.deleteSpace(id)
   push()
+  if (!withToast) return
   toast(
     { icon: "trash", message: `Deleted space “${space.name}”` },
     { undo: () => store.restoreSpace(space, index, sessionIDs) },
@@ -1228,12 +1231,12 @@ const cliHost: CliHost = {
     if (store.data.archived[id]) store.setArchived([id], false)
     push()
   },
-  archive,
+  archive: (ids) => archive(ids, { toast: false }),
   unarchive: (ids) => {
     store.setArchived(ids, false)
     push()
   },
-  deleteSpace,
+  deleteSpace: (id) => deleteSpace(id, { toast: false }),
   createSpace: (name) => store.createSpace(name),
   changed: push,
   prompt: async (id, text) => {
