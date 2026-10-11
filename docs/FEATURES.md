@@ -85,9 +85,11 @@ where it lives.
 - Resource adapters, one file per service in `src/shared/adapters/`, registered in `adapters/index.ts`: each
   declares the link types it recognizes (URL → canonical key, icon, offline title) and, optionally, a `live`
   part that fetches details through the service's own CLI (ctrl never handles tokens). Live results are
-  display-ready (title, subtitle, tone, chips) and carry a cache policy (max age, refetch when mentioned
-  again); one scheduler fetches only while the panel is open and the window focused, and caches on disk
-  (`src/main/adapters/service.ts`). Settings → Resource adapters lists them with a status
+  display-ready (title, subtitle, tone, chips), carry the same details as plain `fields` for agents (PR state,
+  draft, CI, review, mergeable, author; deployment state, target, branch; Slack channel, author, text), and a
+  cache policy (max age, refetch when mentioned again); one scheduler fetches only while the panel is open and
+  the window focused, and caches on disk (`src/main/adapters/service.ts`). The CLI shares that cache and its
+  pauses (see Command line). Settings → Resource adapters lists them with a status
   dot (CLI checked on launch and when Settings opens: ready, not installed, not logged in), a mode select
   (Off hides its links, Links only, Live details) and, when the CLI isn't set up, a copyable agent prompt to
   install and log it in, plus Check again
@@ -156,6 +158,11 @@ where it lives.
 - UI: what's on screen, opencode home screen with a prefilled prompt, window show / hide / raise, resources
   panel, sidebar width, Recents / Archived folding, settings page, ⌘P palette with a query, toast
 - Search, resources, models, MCP servers, skills, app status / launch / updates, and an NDJSON `events` stream
+- Resources with live details: `resources list` fetches what's due like the panel does (same cache policy,
+  only the returned items, window focus not needed), waits up to `--wait` (5s) and marks the rest `pending`;
+  `--cached` skips fetching. `resources refresh [<id|url>...]` refetches regardless of the cache, by id, URL or
+  scope. Both report adapters that couldn't fetch in `errors` (rate limited with `retryAt`, CLI not set up with
+  the fixing command)
 - Selectors: `self` (the calling session, via `OPENCODE_SESSION_ID` or ctrl's `CTRL_TERM_ID` in fx ptys),
   `current`, `name:<title>`; ambiguous names list candidates
 - Sessions an agent creates are marked `createdByAgent: {agent, by, at}` (by = the agent's own session, via

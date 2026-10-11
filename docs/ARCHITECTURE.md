@@ -125,9 +125,21 @@ panel ◄── main: GROUP BY resource over the scope's mentions (~3ms)
   `/pull/1` and `/pull/1#x` are one PR), plus an icon and an offline title. Order matters: the first type that
   matches wins (PR before repo). URLs no type recognizes are ignored.
 - **Live details are optional:** an adapter with a `live` part fetches them through its service's CLI (`gh`,
-  `vercel`, `slack-cli`), so ctrl never handles tokens. It returns display-ready details plus a cache policy;
-  `src/main/adapters/service.ts` does the scheduling and caching for all of them. Linear and Notion have no
-  `live` part, so their links are shown as parsed.
+  `vercel`, `slack-cli`), so ctrl never handles tokens. It returns display-ready details (title, tone, chips)
+  plus the same details as plain `fields` for agents, and a cache policy; `src/main/adapters/service.ts` does
+  the scheduling and caching for all of them. Linear and Notion have no `live` part, so their links are shown
+  as parsed.
+- **Two ways in, one cache:** the panel watches the sessions it shows and fetches what's due while the window
+  is focused. `ctrl resources list` asks the service directly (`request()`), for the returned items only, with
+  the same cache policy and regardless of focus; `resources refresh` does the same with `force`. Both share
+  the cache, the pauses (rate limits, backoff, CLI not set up) and in-flight fetches, so nothing is fetched
+  twice and whatever one fetches, the other shows.
+
+```text
+panel (watch, focused) ─┐                      ┌─► due? → adapter.fetch (batched) ─► resource-meta.db
+ctrl resources list ────┼─► AdapterService ────┤
+ctrl resources refresh ─┘   (force)            └─► in flight? → wait on that fetch
+```
 - **Modes and status:** each adapter is Off (links hidden), Links only or Live details in Settings. A live
   adapter's `check()` verifies its CLI is installed and logged in without fetching, so Settings can show
   whether it works and offer a setup prompt built from `live.cli` (install, login, verify commands).

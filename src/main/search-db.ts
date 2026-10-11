@@ -83,6 +83,8 @@ export function openSearchDb(path: string, opts: { readOnly?: boolean } = {}) {
       PRIMARY KEY (message_id, resource_id)
     ) WITHOUT ROWID;
     CREATE INDEX IF NOT EXISTS mentions_session ON resource_mentions(session_id);
+    -- Lookups by resource id (ctrl resources refresh <id>)
+    CREATE INDEX IF NOT EXISTS mentions_resource ON resource_mentions(resource_id);
     CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     PRAGMA user_version = ${INDEX_VERSION};
   `)
@@ -183,10 +185,33 @@ type ResourceRow = {
   by_user: number
 }
 
+const toItem = (r: ResourceRow): ResourceItem => ({
+  id: r.id,
+  type: r.type,
+  url: r.url,
+  data: JSON.parse(r.data),
+  mentions: r.mentions,
+  sessions: r.sessions,
+  first: r.first,
+  last: r.last,
+  sharedByYou: r.by_user === 1,
+})
+
 export class ResourceReader {
   private query
+  private byIDQuery
 
   constructor(db: DatabaseSync) {
+    this.byIDQuery = db.prepare(`
+      SELECT r.id, r.type, r.url, r.data,
+        count(*) AS mentions, count(DISTINCT m.session_id) AS sessions,
+        min(m.created) AS first, max(m.created) AS last, max(m.role = 'user') AS by_user
+      FROM resources r JOIN resource_mentions m ON m.resource_id = r.id
+      WHERE r.id IN (SELECT value FROM json_each(?))
+      GROUP BY r.id
+      ORDER BY last DESC
+      LIMIT ${RESOURCE_LIMIT}
+    `)
     this.query = db.prepare(`
       SELECT r.id, r.type, r.url, r.data,
         count(*) AS mentions, count(DISTINCT m.session_id) AS sessions,
@@ -202,16 +227,12 @@ export class ResourceReader {
   /** Resources mentioned in any of these sessions. Cost grows with their mentions, not with the whole index. */
   list(sessionIDs: string[]): ResourceItem[] {
     if (!sessionIDs.length) return []
-    return (this.query.all(JSON.stringify(sessionIDs)) as ResourceRow[]).map((r) => ({
-      id: r.id,
-      type: r.type,
-      url: r.url,
-      data: JSON.parse(r.data),
-      mentions: r.mentions,
-      sessions: r.sessions,
-      first: r.first,
-      last: r.last,
-      sharedByYou: r.by_user === 1,
-    }))
+    return (this.query.all(JSON.stringify(sessionIDs)) as ResourceRow[]).map(toItem)
+  }
+
+  /** These resources, wherever they were mentioned (counts cover every session). Unknown ids are left out. */
+  byIDs(ids: string[]): ResourceItem[] {
+    if (!ids.length) return []
+    return (this.byIDQuery.all(JSON.stringify(ids)) as ResourceRow[]).map(toItem)
   }
 }

@@ -310,6 +310,11 @@ export type ResourceMeta = {
   chips?: { text: string; tone: Tone; title?: string }[]
   /** Extra tooltip lines */
   details?: string[]
+  /**
+   * The same details as plain values, for agents (`ctrl resources list`): e.g. a PR's
+   * {state:"open", draft:false, ci:"pending", review:"approved", author:"luc"}. Keys per type in docs/CLI.md.
+   */
+  fields?: Record<string, string | number | boolean | null>
   /** Not found, or not visible to the CLI's account */
   missing?: boolean
   fetched: number

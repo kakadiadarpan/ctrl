@@ -30,7 +30,8 @@ import {
   type UiState,
   type UpdateStatus,
 } from "../shared/types"
-import { resourceType } from "../shared/adapters"
+import { parseResourceUrl, resourceType } from "../shared/adapters"
+import type { RequestResult } from "./adapters/service"
 import type { Handler } from "./cli-server"
 import type { Store } from "./store"
 
@@ -82,6 +83,10 @@ export type CliHost = {
   home(prefill?: string): void
   search(query: string): SearchResult
   resources(sessionIDs: string[]): (ResourceItem & { meta?: ResourceMeta })[]
+  resourcesByID(ids: string[]): (ResourceItem & { meta?: ResourceMeta })[]
+  /** Fetches live details like the panel would (`force`: all of them), waiting at most `wait` ms */
+  fetchResources(items: ResourceItem[], opts: { force: boolean; wait: number }): Promise<RequestResult>
+  resourceMeta(item: { id: string; type: string }): ResourceMeta | undefined
   models(harness: Harness, directory?: string): Promise<ModelChoices>
   mcp(): McpServerItem[]
   reconnectMcp(name: string): Promise<void>
@@ -529,6 +534,60 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
     return `${target === "fx" ? "" : "@"}session[${title}](${s.id})`
   }
 
+  // ---------- resources ----------
+
+  const sessionMap = () => new Map(host.sessions().map((s) => [s.id, s]))
+  const limitArg = (value: unknown) => Math.max(1, Math.min(500, Number(value ?? 100)))
+  const waitArg = (value: unknown, fallback: number) => Math.max(0, Math.min(60_000, Number(value ?? fallback)))
+
+  /** `--session` / `--space` / `--type` / `--limit`, as the panel scopes them: newest mention first. */
+  const scopedResources = (args: Record<string, any>, caller: CallerContext) => {
+    let ids: string[]
+    if (args.space !== undefined) {
+      const spaceID = resolveSpace(args.space, caller).id
+      ids = host.sessions().filter((s) => store.data.assignments[s.id] === spaceID).map((s) => s.id)
+    } else ids = ((args.session as string[] | undefined) ?? ["current"]).map((sel) => resolveSession(sel, caller).id)
+    let items = host.resources(ids)
+    // A session never lists itself as a reference, like the panel.
+    if (ids.length === 1) items = items.filter((r) => r.type !== "session" || r.data.id !== ids[0])
+    if (args.type?.length) items = items.filter((r) => args.type.includes(r.type))
+    return items.slice(0, limitArg(args.limit))
+  }
+
+  const resourceView = (r: ResourceItem & { meta?: ResourceMeta }, sessions: Map<string, SessionItem>, pending = false) => {
+    const offline = resourceType(r.type)?.describe(r.data)
+    const subtitle = r.meta?.subtitle ?? offline?.subtitle
+    // Referenced sessions: their current state from the session list, null once deleted.
+    const ref = r.type === "session" ? sessions.get(r.data.id) : undefined
+    return {
+      id: r.id,
+      type: r.type,
+      url: r.url,
+      title: ref?.title ?? r.meta?.title ?? offline?.title ?? r.url,
+      ...(r.type === "session" ? { session: ref ? sessionView(ref) : null } : {}),
+      ...(subtitle ? { subtitle } : {}),
+      mentions: r.mentions,
+      sessions: r.sessions,
+      first: r.first,
+      last: r.last,
+      sharedByYou: r.sharedByYou,
+      data: r.data,
+      ...(r.meta ? { live: r.meta } : {}),
+      ...(pending ? { pending: true } : {}),
+    }
+  }
+
+  /** Fetches the page's live details (the panel's cache policy, or all with `force`), then answers with them. */
+  const fetchedResources = async (items: ResourceItem[], opts: { force: boolean; wait: number }) => {
+    const result = await host.fetchResources(items, opts)
+    const pending = new Set(result.pending)
+    const sessions = sessionMap()
+    return {
+      items: items.map((r) => resourceView({ ...r, meta: host.resourceMeta(r) }, sessions, pending.has(r.id))),
+      errors: result.errors,
+    }
+  }
+
   // ---------- handlers ----------
 
   const handlers: Record<string, Handler> = {
@@ -911,41 +970,33 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
         }))
       return { titles, hits, index: result.status }
     },
-    "resources list": (args, req) => {
-      let ids: string[]
-      if (args.space !== undefined) {
-        const spaceID = resolveSpace(args.space, req.caller).id
-        ids = host.sessions().filter((s) => store.data.assignments[s.id] === spaceID).map((s) => s.id)
-      } else ids = ((args.session as string[] | undefined) ?? ["current"]).map((sel) => resolveSession(sel, req.caller).id)
-      let items = host.resources(ids)
-      // A session never lists itself as a reference, like the panel.
-      if (ids.length === 1) items = items.filter((r) => r.type !== "session" || r.data.id !== ids[0])
-      if (args.type?.length) items = items.filter((r) => args.type.includes(r.type))
-      const limit = Math.max(1, Math.min(500, Number(args.limit ?? 100)))
-      const sessions = new Map(host.sessions().map((s) => [s.id, s]))
-      return {
-        items: items.slice(0, limit).map((r) => {
-          const offline = resourceType(r.type)?.describe(r.data)
-          const subtitle = r.meta?.subtitle ?? offline?.subtitle
-          // Referenced sessions: their current state from the session list, null once deleted.
-          const ref = r.type === "session" ? sessions.get(r.data.id) : undefined
-          return {
-          id: r.id,
-          type: r.type,
-          url: r.url,
-          title: ref?.title ?? r.meta?.title ?? offline?.title ?? r.url,
-          ...(r.type === "session" ? { session: ref ? sessionView(ref) : null } : {}),
-          ...(subtitle ? { subtitle } : {}),
-          mentions: r.mentions,
-          sessions: r.sessions,
-          first: r.first,
-          last: r.last,
-          sharedByYou: r.sharedByYou,
-          data: r.data,
-          ...(r.meta ? { live: r.meta } : {}),
-          }
-        }),
+    "resources list": async (args, req) => {
+      const items = scopedResources(args, req.caller)
+      if (args.cached) {
+        const sessions = sessionMap()
+        return { items: items.map((r) => resourceView(r, sessions)), errors: [] }
       }
+      return fetchedResources(items, { force: false, wait: waitArg(args.wait, 5000) })
+    },
+    "resources refresh": async (args, req) => {
+      const sels = (args.resource as string[] | undefined) ?? []
+      let items: ResourceItem[]
+      if (sels.length) {
+        if (args.session !== undefined || args.space !== undefined)
+          throw new CliError("USAGE", "Pass resource ids, or --session / --space, not both")
+        // Canonical ids as `resources list` returns them, or any URL of the resource.
+        const ids = [...new Set(sels.map((s) => parseResourceUrl(s)?.key ?? s))]
+        const found = host.resourcesByID(ids)
+        const unknown = ids.filter((id) => !found.some((r) => r.id === id))
+        if (unknown.length)
+          throw new CliError("NOT_FOUND", `No resource ${unknown.join(", ")} in ctrl's sessions`, {
+            hint: "ctrl resources list --space <space> shows resource ids",
+          })
+        items = found
+        if (args.type?.length) items = items.filter((r) => args.type.includes(r.type))
+        items = items.slice(0, limitArg(args.limit))
+      } else items = scopedResources(args, req.caller)
+      return fetchedResources(items, { force: true, wait: waitArg(args.wait, 10000) })
     },
     "models list": async (args, req) => {
       const harness: Harness = args.harness ?? "opencode"
