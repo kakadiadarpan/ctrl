@@ -25,7 +25,7 @@ so ctrl keeps a process per open session and reads its files and terminal output
 
 ## Support table
 
-✅ supported · ⚠️ partial · ❌ not supported
+✅ supported · ⚠️ partial · ⏳ waiting on the harness · ❌ not supported
 
 | Feature | opencode | fx | Notes |
 |---|---|---|---|
@@ -43,6 +43,7 @@ so ctrl keeps a process per open session and reads its files and terminal output
 | New session in a space's folder | ✅ | ✅ | |
 | Harness per space / app default | ✅ | ✅ | |
 | Custom model per space / app default | ✅ | ✅ | Picked separately per harness · fx: `--model` and `--effort` |
+| Variant / effort picker | ✅ | ⏳ | fx: waiting on a release with [vercel-labs/fx#1171](https://github.com/vercel-labs/fx/pull/1171) (merged after v0.0.13), which adds each model's `efforts` to `fx models --json`. ctrl already reads it, so the picker fills in after `fx upgrade`. Until then, set it with the CLI: `--fx-model "<model>#<effort>"` |
 | Space instructions | ✅ | ❌ | fx has no way to take extra instructions for a session |
 | ctrl instructions (agent knows it's in ctrl) | ✅ | ❌ | Same reason. fx agents still find `ctrl` through the `ctrl` skill |
 | Switching sessions | ✅ instant | ⚠️ | fx: instant once open, about 1s the first time (`fx resume`) |
