@@ -64,3 +64,6 @@ Don't guess flags: read `help` first. The most used ones:
 - Run it through `ctrl.sh`, or with `AI_AGENT=<your name>` set, so sessions you create are marked as made
   by an agent (opencode sets `AI_AGENT` for you).
 - Use `--fields id,title` on lists to keep output small.
+- To check a prompt was taken (`session new --prompt`, `session send`), look for status `running`, then
+  `session wait <s> --for done`. fx only logs a turn once it ends, so `session read` shows an fx turn in
+  progress as `Turn N · running`. fx can't report `needs-input`, so give waits on fx a `--timeout`.

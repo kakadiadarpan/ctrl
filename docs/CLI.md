@@ -148,6 +148,10 @@ Wherever a command takes a session or a space, it also takes a selector:
   (`--focus`), while fx sessions get typed into in the background.
 - **New fx sessions:** fx only reports a session id once its process is up, so `session new` waits for it.
   If it doesn't come within 15s, `data` is `{pending:true, terminal}`.
+- **fx turns:** fx writes a turn to `events.jsonl` only when it ends, and keeps the turn in progress in
+  `recovery.json`. ctrl reads that file, so a prompted fx session shows `running` within a second or two,
+  `session wait --for done` works, and `session read` shows `Turn N · running`. fx 0.0.13 sends no OSC 7501
+  status reports, so `needs-input` and `failed` never show: a turn waiting on a permission stays `running`.
 - **No session deletes:** agents archive (`session archive`, `space archive-all`). To delete, the user
   right-clicks the session in the sidebar.
 

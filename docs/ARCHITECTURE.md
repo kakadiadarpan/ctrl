@@ -58,6 +58,7 @@ fx has no server and no plugin API, so ctrl works from its files and its termina
 ```text
 ~/.fx/sessions/<id>/ ── session.json (title, folder) ┐
                      ── events.jsonl (last line)     ├─► src/main/fx.ts ─► sidebar
+                     ── recovery.json (turn running) │
                      ── owner.live (pid)             ┘
 fx process in a pty ── OSC 7501 status reports ─────────► running / needs you / failed
 ```
@@ -68,7 +69,9 @@ fx process in a pty ── OSC 7501 status reports ─────────�
   appends once the file is closed. So sessions with a live fx process (`owner.live`) are also checked on a
   timer, one stat each (2s in main, 5s in the indexer), and re-read when their log grew.
 - **Status:** OSC 7501 (Program Status Protocol) reports from the processes ctrl runs give running, needs you
-  and failed. Otherwise the last line of `events.jsonl` says whether a turn is in progress. Read state is
+  and failed (fx 0.0.13 sends none). Otherwise `recovery.json` says a turn is in progress: fx writes a turn
+  to `events.jsonl` only once it ends, and keeps the one in flight in `recovery.json` until then (the poller
+  also notices that file appearing or going away). Read state is
   ctrl's own (`viewed` in `state.json`); turns that ended before ctrl first saw fx count as read.
 - **Processes:** `src/main/fx-terminals.ts` runs one `fx resume --id <id>` per open session, up to 12, and
   closes the least recently used idle ones past that. `owner.live` tells which session a process has, so
