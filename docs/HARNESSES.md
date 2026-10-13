@@ -60,6 +60,7 @@ so ctrl keeps a process per open session and reads its files and terminal output
 | Sessions open in another terminal | ✅ | ⚠️ | fx allows one process per session: shown, but ctrl can't open or delete them until that fx quits |
 | Reference a session (drag onto the terminal) | ✅ | ✅ | Works across harnesses, with the `read-session` skill |
 | Drop files from Finder | ✅ | ✅ | |
+| Drag a resource onto the terminal | ✅ | ✅ | Pastes its link, or its session mention |
 | ⌘-click links, wrapped URLs | ✅ | ✅ | |
 | Theme for the terminal | ✅ | ⚠️ | fx follows ctrl's light/dark; pick an fx theme in `~/.fx/settings.json` |
 | MCP server status and Fix | ✅ | ❌ | opencode's MCP servers only |
