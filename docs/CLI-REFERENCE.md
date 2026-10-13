@@ -178,7 +178,7 @@ ctrl session new [--space <space>] [--harness opencode|fx] [--directory <directo
 **Returns:** `Session`
 
 - **Harness:** fx: fx only reports a new session's id once its process is up; `new` waits for it (up to 15s). If it doesn't come, `data` is {pending:true, terminal} and the session shows up in `session list` later.
-- **Harness:** fx: --prompt is typed into the fx prompt and submitted.
+- **Harness:** fx: --prompt is typed into the fx prompt and submitted; the reply has `status: running` once the turn started. To know it's over, `ctrl session wait <id> --for done`. fx writes a turn to its log only when it ends, so until then `session read` shows it as `Turn N · running`.
 
 ```bash
 ctrl session new --space name:reviews --title "Review #42" --prompt "Review PR #42"
@@ -282,7 +282,7 @@ ctrl session send <session> --text <text> [--submit] [--focus]
 **Returns:** `{id, submitted:boolean}`
 
 - **Harness:** opencode: sent through the opencode service, works in the background. --no-submit types into the one TUI, so the session must be on screen (pass --focus).
-- **Harness:** fx: typed into the session's fx process (started in the background if needed). Fails with CONFLICT when fx has it open in another terminal.
+- **Harness:** fx: typed into the session's fx process (started in the background if needed). Fails with CONFLICT when fx has it open in another terminal. Taken: the session turns `running` within a second or two (`ctrl session wait <id> --for running`).
 
 ### session wait
 
@@ -303,7 +303,8 @@ ctrl session wait <session> [--for done|idle|needs-input|running|failed] [--time
 
 **Returns:** `Session`
 
-- **Harness:** fx: `needs-input` and `failed` only show for sessions open in ctrl (OSC 7501).
+- **Harness:** fx: `running` while a turn is in progress, `done` once it ends.
+- **Harness:** fx: `needs-input` and `failed` only show for sessions open in ctrl, and only with an fx that sends OSC 7501 status reports (fx 0.0.13 doesn't). Without them, a turn stuck on a permission prompt stays `running`, so pass a --timeout.
 
 ```bash
 ctrl session wait ses_x --for done --timeout 1800000
@@ -370,6 +371,8 @@ ctrl session read <session> [--turn <n>]
 | `--turn <n>` | Everything said in this turn instead |
 
 **Returns:** `{id, digest:string}`
+
+- **Harness:** fx: a turn still in progress shows as `Turn N · running` with what it did so far (fx logs a turn only once it ends).
 
 ```bash
 ctrl session read ses_abc | jq -r .data.digest

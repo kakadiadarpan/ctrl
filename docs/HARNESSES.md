@@ -50,9 +50,10 @@ so ctrl keeps a process per open session and reads its files and terminal output
 | Many sessions open at once | ✅ | ⚠️ | fx: up to 12 live processes, the least recently used idle ones are closed past that |
 | Turns keep running when ctrl quits | ✅ | ❌ | fx has no background service: quitting stops the turn, send `continue` after reopening |
 | Sessions open at quit come back | ✅ | ⚠️ | fx: reopened at launch (`fx resume`), with a compact transcript instead of the full screen |
-| Status: running | ✅ | ✅ | fx: OSC 7501 status reports, else the last line of `events.jsonl` |
-| Status: needs you (permission, question) | ✅ | ⚠️ | fx: only for sessions open in ctrl (OSC 7501) |
-| Status: failed | ✅ | ⚠️ | fx: only for sessions open in ctrl |
+| Status: running | ✅ | ✅ | fx: OSC 7501 status reports, else `recovery.json` (the turn in progress) or the last line of `events.jsonl` |
+| Status: needs you (permission, question) | ✅ | ⚠️ | fx: only for sessions open in ctrl, with an fx that sends OSC 7501 (0.0.13 doesn't) |
+| Status: failed | ✅ | ⚠️ | fx: only for sessions open in ctrl, with an fx that sends OSC 7501 (0.0.13 doesn't) |
+| `ctrl session read` of a turn in progress | ✅ | ✅ | fx: from `recovery.json`, since fx logs a turn only once it ends |
 | Status: finished, unread | ✅ | ✅ | fx: read state kept by ctrl |
 | Status of sessions that aren't open | ✅ live | ⚠️ | fx: read from files on disk |
 | Notifications, sounds, dock badge | ✅ | ⚠️ | Same as status: fx's "needs you" and "failed" only for open sessions. fx's own sounds are turned off (`FX_SOUND=off`) |

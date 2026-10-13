@@ -64,7 +64,8 @@ where it lives.
 - **Archived**: most recently archived first, 10 at a time with Show more, foldable (state saved)
 - Status per row, most urgent first: needs input (permission / question), running, failed (unread),
   finished (unread), otherwise time since last update (`src/renderer/StatusIcon.tsx`). fx: from OSC 7501
-  reports of the processes ctrl runs, else the last line of `events.jsonl`; read state kept by ctrl
+  reports of the processes ctrl runs, else `recovery.json` (turn in progress) or the last line of
+  `events.jsonl`; read state kept by ctrl
   (`src/main/fx.ts`)
 - Sidebar list patched from opencode events instead of re-listing (`src/main/opencode.ts`); fx sessions
   from one scan of `~/.fx/sessions`, then an fs watcher re-reads only the folder that changed (`src/main/fx.ts`)
@@ -111,7 +112,8 @@ where it lives.
 - ⌘-click links to open them in the browser, including URLs wrapped across lines (`src/renderer/wrapped-links.ts`)
 - Drag a session onto the terminal to paste `@session[Title](id)` (`session[…]` without the `@` in fx, which
   reads `@` as a file); the `read-session` skill lets the agent read it, opencode or fx, from either harness,
-  with or without node installed (`src/renderer/ReferenceDrop.tsx`, `skills/read-session`)
+  with or without node installed (`src/renderer/ReferenceDrop.tsx`, `skills/read-session`). An fx turn still
+  in progress shows as `Turn N · running` (read from `recovery.json`)
 - Drop files from Finder onto the terminal to paste their escaped paths (`src/renderer/ReferenceDrop.tsx`)
 - Text size: stepper in settings, ⌘+ / ⌘− / ⌘0
 - Joined emoji (🏄‍♂️, 👩‍💻, flags) render as one glyph with the right width (`@xterm/addon-unicode-graphemes`)
