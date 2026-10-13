@@ -102,7 +102,8 @@ where it lives.
   - Sessions (`src/shared/adapters/sessions.ts`): `@session[Title](id)` references, as dropped on the terminal,
     list the referenced session with its current title, space and folder, plus `archived`, `running`,
     `needs you`, `failed` or `deleted` chips from the sidebar's list. Archiving the referenced session keeps the
-    row. Click opens it in ctrl, the copy button copies the reference. A session never lists itself.
+    row. Click opens it in ctrl, the copy button copies the reference, dragging it onto the terminal pastes
+    the reference. A session never lists itself.
     `ctrl resources list` returns them as type `session` with the referenced session (or `null` once deleted)
 
 ## Terminal
@@ -115,6 +116,8 @@ where it lives.
   with or without node installed (`src/renderer/ReferenceDrop.tsx`, `skills/read-session`). An fx turn still
   in progress shows as `Turn N · running` (read from `recovery.json`)
 - Drop files from Finder onto the terminal to paste their escaped paths (`src/renderer/ReferenceDrop.tsx`)
+- Drag a row from the resources panel onto the terminal to paste its link, or its session mention for a
+  referenced session (`src/renderer/ResourcesPanel.tsx`, `src/renderer/ReferenceDrop.tsx`)
 - Text size: stepper in settings, ⌘+ / ⌘− / ⌘0
 - Joined emoji (🏄‍♂️, 👩‍💻, flags) render as one glyph with the right width (`@xterm/addon-unicode-graphemes`)
 

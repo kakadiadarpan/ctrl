@@ -4,7 +4,7 @@ import type { AdapterInfo, AppState, Harness, ResourceItem, ResourceMeta } from 
 import { harnessOf } from "../shared/types"
 import { age, shortPath } from "./format"
 import { Icon } from "./icons"
-import { sessionMention } from "./ReferenceDrop"
+import { RESOURCE_DRAG, type ResourceDrag, sessionMention } from "./ReferenceDrop"
 
 const PAGE_SIZE = 8
 
@@ -216,10 +216,19 @@ function ResourceRow(props: { item: ResourceItem; source?: AdapterInfo; spaceSco
     `Mentioned ${item.mentions}×${where}, last ${age(item.last)} ago${item.sharedByYou ? " · shared by you" : ""}`,
   ].join("\n")
 
+  const text = isSession ? sessionMention({ id: item.data.id, title }, props.target) : item.url
+
   return (
     <div
       className="row resource"
       title={tooltip}
+      draggable
+      onDragStart={(e) => {
+        const drag: ResourceDrag = { text, session: isSession }
+        e.dataTransfer.setData(RESOURCE_DRAG, JSON.stringify(drag))
+        e.dataTransfer.setData("text/plain", text)
+        e.dataTransfer.effectAllowed = "copy"
+      }}
       onClick={() => {
         if (!isSession) void window.ctrl.openExternal(item.url)
         else if (!deleted) void window.ctrl.openSession(item.data.id)
@@ -249,7 +258,6 @@ function ResourceRow(props: { item: ResourceItem; source?: AdapterInfo; spaceSco
         title={copied ? "Copied" : isSession ? "Copy reference" : "Copy link"}
         onClick={(e) => {
           e.stopPropagation()
-          const text = isSession ? sessionMention({ id: item.data.id, title }, props.target) : item.url
           void navigator.clipboard.writeText(text).then(() => {
             setCopied(true)
             setTimeout(() => setCopied(false), 1200)
