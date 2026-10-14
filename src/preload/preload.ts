@@ -61,6 +61,7 @@ const api: CtrlApi = {
   retryAdapter: (id) => ipcRenderer.invoke("adapter:retry", id),
   checkAdapters: () => ipcRenderer.invoke("adapters:check"),
   recheckOpencode: () => ipcRenderer.invoke("opencode:recheck"),
+  restartOpencode: () => ipcRenderer.invoke("opencode:restart"),
   installSkill: () => ipcRenderer.invoke("skill:install"),
   uninstallSkill: () => ipcRenderer.invoke("skill:uninstall"),
   sessionReferenced: () => ipcRenderer.invoke("skill:referenced"),

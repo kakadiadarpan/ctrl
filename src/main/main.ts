@@ -141,6 +141,7 @@ const terms = (): TermInfo[] => [
 const state = (): AppState => ({
   version: app.getVersion(),
   opencode: opencodeCheck,
+  opencodeServer: opencode.server,
   fx: fxCheck,
   skill: skill.current,
   cli: cliInstall.current,
@@ -216,6 +217,7 @@ const sessionsChanged = () => {
 
 const opencode = new OpenCodeService(() => {
   watchMcp()
+  watchServer()
   sessionsChanged()
 })
 
@@ -893,6 +895,29 @@ const deleteSpace = (id: string, { toast: withToast = true } = {}) => {
   )
 }
 
+// ---------- opencode service health ----------
+
+let serverAlert: string | null = null
+
+/** Sticky toast while the opencode service is broken (OpencodeServer), cleared once it's healthy again. */
+const watchServer = () => {
+  const broken = opencode.server.state === "broken"
+  if (broken && !serverAlert) {
+    serverAlert = toast(
+      { icon: "alert", message: "opencode lost its macOS session: DNS, GitHub and the keychain fail in every session" },
+      { sticky: true, action: { label: "Restart", run: () => void restartOpencode() } },
+    )
+  } else if (!broken && serverAlert) {
+    dismissToast(serverAlert)
+    serverAlert = null
+  }
+}
+
+const restartOpencode = async () => {
+  await opencode.restart().catch(report)
+  terminal.restart(opencodeRoute)
+}
+
 // ---------- MCP servers ----------
 
 const MCP_BROKEN = new Set(["failed", "needs_auth"])
@@ -1154,7 +1179,8 @@ function registerIpc() {
     return adapters.check()
   })
 
-  ipcMain.handle("opencode:recheck", () => Promise.all([recheckOpencode(), recheckFx()]))
+  ipcMain.handle("opencode:recheck", () => Promise.all([recheckOpencode(), recheckFx(), opencode.checkHealth()]))
+  ipcMain.handle("opencode:restart", () => restartOpencode())
   ipcMain.handle("skill:install", () => installSkill())
   ipcMain.handle("skill:uninstall", () => {
     skill.uninstall()

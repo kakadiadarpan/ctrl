@@ -3,7 +3,7 @@ import { Service } from "@opencode/client/service"
 import { homedir } from "node:os"
 import { findOpencode } from "./opencode-bin"
 import { CTRL_INSTRUCTIONS } from "../shared/ctrl-instructions"
-import type { McpServerItem, ModelChoices, ModelOption, ModelRef, SessionItem } from "../shared/types"
+import type { McpServerItem, ModelChoices, ModelOption, ModelRef, OpencodeServer, SessionItem } from "../shared/types"
 
 const SPACE_INSTRUCTIONS_KEY = "ctrl.space"
 const CTRL_INSTRUCTIONS_KEY = "ctrl.cli"
@@ -17,6 +17,16 @@ type Event = { type: string; data?: Record<string, unknown> }
 const MAX_SESSIONS = 1000
 /** Coalesce a burst of events for one session (execution end + idle) into one fetch. */
 const FETCH_DEBOUNCE_MS = 100
+
+/**
+ * Runs inside the service. Fails once it lost its macOS login session (e.g. the terminal that
+ * spawned it went away): user lookups then return the bare uid.
+ */
+const HEALTH_PROBE = `[ "$(/usr/bin/id -un)" != "$(/usr/bin/id -u)" ]`
+const HEALTH_INTERVAL_MS = 5 * 60_000
+const HEALTH_TIMEOUT_MS = 15_000
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 function message(err: unknown) {
   return err instanceof Error ? err.message : String(err)
@@ -80,7 +90,16 @@ export class OpenCodeService {
   /** Set while the opencode service can't be reached or sessions can't be loaded. */
   problem: string | null = null
 
+  server: OpencodeServer = { state: "checking" }
+  private checking = false
+
   async start() {
+    await this.connect()
+    void this.listen()
+    setInterval(() => void this.checkHealth(), HEALTH_INTERVAL_MS)
+  }
+
+  private async connect() {
     // Keep retrying: the service may still be starting, or come back later.
     while (true) {
       try {
@@ -88,19 +107,71 @@ export class OpenCodeService {
         const bin = findOpencode()
         const endpoint = await Service.ensure(bin ? { command: [bin, "serve", "--service"] } : {})
         this.client = OpenCode.make({ baseUrl: endpoint.url, headers: Service.headers(endpoint) })
-        break
+        return
       } catch (err) {
         this.setProblem(`Can't reach opencode: ${message(err)}`)
-        await new Promise((r) => setTimeout(r, 3000))
+        await sleep(3000)
       }
     }
-    void this.listen()
   }
 
   private setProblem(problem: string | null) {
     if (problem === this.problem) return
     this.problem = problem
     this.onChange()
+  }
+
+  private setServer(server: OpencodeServer) {
+    if (JSON.stringify(server) === JSON.stringify(this.server)) return
+    this.server = server
+    this.onChange()
+  }
+
+  /** Runs HEALTH_PROBE inside the service. Only a clean failure counts: an unreachable or slow service isn't this. */
+  async checkHealth() {
+    const client = this.client
+    if (!client || this.checking || this.server.state === "restarting") return
+    this.checking = true
+    try {
+      const info = await client.server.info()
+      const healthy = await this.probe(client)
+      this.setServer({ state: healthy ? "ok" : "broken", version: info.version, pid: info.pid })
+    } catch (err) {
+      console.error("[ctrl] opencode health check failed", err)
+    } finally {
+      this.checking = false
+    }
+  }
+
+  private async probe(client: Client) {
+    const location = { directory: homedir() }
+    const { data } = await client.shell.create({ location, command: HEALTH_PROBE, timeout: HEALTH_TIMEOUT_MS })
+    try {
+      let shell = data
+      const deadline = Date.now() + HEALTH_TIMEOUT_MS
+      while (shell.status === "running" && Date.now() < deadline) {
+        await sleep(250)
+        shell = (await client.shell.get({ id: shell.id, location })).data
+      }
+      return !(shell.status === "exited" && shell.exit !== 0)
+    } finally {
+      void client.shell.remove({ id: data.id, location }).catch(() => {})
+    }
+  }
+
+  /** Stops the registered service (whoever started it) and starts a fresh one from ctrl. Runs in progress stop. */
+  async restart() {
+    if (this.server.state === "restarting") return
+    this.setServer({ state: "restarting" })
+    try {
+      await Service.stop({ pty: "handoff" })
+      // listen() picks up the new client on its next reconnect.
+      await this.connect()
+    } finally {
+      this.server = { state: "checking" }
+      this.onChange()
+      await this.checkHealth()
+    }
   }
 
   /** Full snapshot: every root session, which ones run, and what's waiting on you. */
@@ -185,6 +256,7 @@ export class OpenCodeService {
           () => {
             this.setProblem(null)
             this.setReady(this.client!)
+            void this.checkHealth()
           },
           (err) => this.setProblem(`Couldn't load sessions: ${message(err)}`),
         )

@@ -11,6 +11,7 @@ import {
   type FxCheck,
   type Harness,
   type OpencodeCheck,
+  type OpencodeServer,
   FX_INSTALL,
   HARNESSES,
   OPENCODE_INSTALL,
@@ -383,18 +384,38 @@ function useModels(harness: Harness, available: boolean) {
   return { choices, error }
 }
 
-/** Whether a harness is installed, with its install command when it isn't. */
-function HarnessRow({ harness, check }: { harness: Harness; check: OpencodeCheck | FxCheck }) {
+/** Whether a harness is installed, with its install command when it isn't, and whether opencode's running service works. */
+function HarnessRow({
+  harness,
+  check,
+  server,
+}: {
+  harness: Harness
+  check: OpencodeCheck | FxCheck
+  server?: OpencodeServer
+}) {
+  const [busy, setBusy] = useState(false)
   const install = harness === "fx" ? FX_INSTALL : OPENCODE_INSTALL
-  const text =
-    check.state === "ok"
-      ? `Installed · ${check.version}`
-      : check.state === "checking"
-        ? "Checking…"
-        : check.state === "outdated"
-          ? `Version ${check.version} is too old (needs ${check.min})`
-          : "Not installed"
-  const dot = check.state === "ok" ? "connected" : check.state === "checking" ? "pending" : "disabled"
+  const broken = check.state === "ok" && server?.state === "broken"
+  const restarting = check.state === "ok" && server?.state === "restarting"
+  const text = broken
+    ? `Installed · ${check.version} · service (pid ${server.pid}) lost its macOS session`
+    : restarting
+      ? "Restarting service…"
+      : check.state === "ok"
+        ? `Installed · ${check.version}`
+        : check.state === "checking"
+          ? "Checking…"
+          : check.state === "outdated"
+            ? `Version ${check.version} is too old (needs ${check.min})`
+            : "Not installed"
+  const dot = broken
+    ? "failed"
+    : restarting || check.state === "checking"
+      ? "pending"
+      : check.state === "ok"
+        ? "connected"
+        : "disabled"
   return (
     <div className="setting">
       <div className="mcp-name">
@@ -402,6 +423,11 @@ function HarnessRow({ harness, check }: { harness: Harness; check: OpencodeCheck
         <div>
           <div className="setting-title">{harness}</div>
           <div className={`setting-desc adapter-status ${dot}`}>{text}</div>
+          {broken && (
+            <div className="setting-desc">
+              DNS, GitHub and the keychain fail in every session. Restarting stops runs in progress.
+            </div>
+          )}
           {check.state !== "ok" && check.state !== "checking" && (
             <div className="setting-desc">
               Install: <code>{install}</code>
@@ -409,6 +435,20 @@ function HarnessRow({ harness, check }: { harness: Harness; check: OpencodeCheck
           )}
         </div>
       </div>
+      {broken && (
+        <div className="mcp-actions">
+          <button
+            className="btn primary"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true)
+              void window.ctrl.restartOpencode().finally(() => setBusy(false))
+            }}
+          >
+            {busy ? "Restarting…" : "Restart"}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -564,7 +604,7 @@ export function Settings({
               ))}
             </div>
           </div>
-          <HarnessRow harness="opencode" check={state.opencode} />
+          <HarnessRow harness="opencode" check={state.opencode} server={state.opencodeServer} />
           <HarnessRow harness="fx" check={state.fx} />
 
           <div className="setting setting-with-sub">

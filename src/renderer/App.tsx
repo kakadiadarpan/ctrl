@@ -15,6 +15,7 @@ import { Toasts } from "./Toast"
 const EMPTY: AppState = {
   version: "",
   opencode: { state: "checking" },
+  opencodeServer: { state: "checking" },
   fx: { state: "checking" },
   skill: { state: "missing" },
   cli: { state: "missing", link: "", target: "" },
