@@ -197,10 +197,20 @@ export type UpdateStatus =
   | { state: "available" | "downloading"; version: string }
   | { state: "error"; detail: string }
 
+/**
+ * Whether the running opencode service still works. A service that outlived its macOS login
+ * session keeps serving ctrl, but every command it runs loses DNS, user lookups, TLS and the keychain.
+ */
+export type OpencodeServer =
+  | { state: "checking" | "restarting" }
+  | { state: "ok"; version: string; pid: number }
+  | { state: "broken"; version: string; pid: number }
+
 export type AppState = {
   /** ctrl's own version */
   version: string
   opencode: OpencodeCheck
+  opencodeServer: OpencodeServer
   fx: FxCheck
   skill: SkillStatus
   update: UpdateStatus
@@ -424,6 +434,8 @@ export type CtrlApi = {
   checkAdapters(): Promise<void>
   /** Looks for opencode again (after installing or upgrading it) */
   recheckOpencode(): Promise<void>
+  /** Replaces the running opencode service with a fresh one (stops runs in progress) */
+  restartOpencode(): Promise<void>
   installSkill(): Promise<void>
   uninstallSkill(): Promise<void>
   /** A session was referenced: suggests installing the skill if it's missing (once per launch) */

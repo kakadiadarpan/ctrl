@@ -138,6 +138,11 @@ where it lives.
   start with it. Both: pick the one new sessions start with. None: Check again (also when the window regains
   focus). Settings → About → Welcome screen shows it again (`src/renderer/Onboarding.tsx`, `src/main/opencode-bin.ts`)
 - New sessions fall back to the other harness when the chosen one isn't installed (`harnessFor()` in `src/main/main.ts`)
+- opencode service health: once connected and every 5 min, ctrl runs a probe inside the running service. A service
+  that outlived its macOS login session (no DNS, user lookups, TLS or keychain for anything it runs) shows red in
+  Settings → Sessions with Restart, plus a sticky toast with Restart. Restart stops the registered service,
+  starts a fresh one from ctrl and respawns the TUI; the indexer reconnects on its own (`checkHealth()` /
+  `restart()` in `src/main/opencode.ts`)
 - Updates from GitHub Releases through GitHub's public API, no login: checked at launch and every 6h, sticky toast with Update, which
   downloads, swaps the app bundle once ctrl quits and relaunches. Settings → About shows the version
   and a manual check (`src/main/updater.ts`)
