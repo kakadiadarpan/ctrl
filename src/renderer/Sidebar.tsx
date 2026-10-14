@@ -117,6 +117,14 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
     }
   }
 
+  const agentText = (s: SessionItem) => {
+    const origin = state.createdByAgent[s.id]
+    if (!origin) return null
+    const parent = origin.by && state.sessions.find((p) => p.id === origin.by)
+    const who = origin.agent === "agent" ? "an agent" : origin.agent
+    return parent ? `Created by ${who} in "${parent.title}"` : `Created by ${who}`
+  }
+
   const sessionRow = (s: SessionItem) =>
     renamingSession === s.id ? (
       <NameInput
@@ -146,13 +154,20 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
           e.preventDefault()
           void window.ctrl.showSessionMenu(s.id)
         }}
-        title={[statusText(s), s.title, `${s.harness} · ${shortPath(s.directory)}`].filter(Boolean).join("\n")}
+        title={[statusText(s), s.title, `${s.harness} · ${shortPath(s.directory)}`, agentText(s)].filter(Boolean).join("\n")}
       >
         {s.harness === "fx" && <span className="harness-tag">fx</span>}
+        {state.createdByAgent[s.id] && (
+          <span className="agent-tag">
+            <Icon name="bot" />
+          </span>
+        )}
         <span className="label">{s.title}</span>
         {hints?.has(s.id) ? (
           <kbd className="jump-hint">⌘{hints.get(s.id)}</kbd>
-        ) : s.status === "idle" ? (
+        ) : s.status === "idle" ||
+          // Archived sessions only flag what's live (running, needs you), not unread/failed.
+          (state.archived[s.id] && (s.status === "unread" || s.status === "failed")) ? (
           <span className="meta">{age(s.updated)}</span>
         ) : (
           <StatusIcon status={s.status} />

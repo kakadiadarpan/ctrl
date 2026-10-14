@@ -13,6 +13,7 @@ import {
   type Harness,
   type ModelChoices,
   type ModelOption,
+  type ModelRef,
   type OpencodeCheck,
   type SessionItem,
   type Settings,
@@ -26,6 +27,11 @@ import {
 } from "../shared/types"
 import { accelFromInput, commandFor, type CommandID } from "../shared/shortcuts"
 import { Attention } from "./attention"
+import { setChildEnv } from "./child-env"
+import { createHandlers, type CliHost } from "./cli-handlers"
+import { CliInstall } from "./cli-install"
+import { CliServer } from "./cli-server"
+import { CliError, SOCKET_NAME } from "../shared/cli/protocol"
 import { playSound } from "./sound"
 import { ADAPTERS } from "../shared/adapters"
 import { AdapterService } from "./adapters/service"
@@ -138,10 +144,13 @@ const state = (): AppState => ({
   opencodeServer: opencode.server,
   fx: fxCheck,
   skill: skill.current,
+  cli: cliInstall.current,
+  cliSkill: cliSkill.current,
   update: updater.status,
   spaces: store.data.spaces,
   assignments: store.data.assignments,
   archived: store.data.archived,
+  createdByAgent: store.data.createdByAgent,
   ui: store.data.ui,
   settings: store.data.settings,
   themes,
@@ -162,13 +171,34 @@ const state = (): AppState => ({
 })
 
 let pushQueued = false
+/** CLI waiters and event streams (src/main/cli-handlers.ts), told after every state change. */
+const changeListeners = new Set<() => void>()
+/** The space's choice, else the app setting. */
+const ctrlInstructionsOn = (spaceID: string | null | undefined) =>
+  (spaceID ? store.space(spaceID)?.ctrlInstructions : undefined) ?? store.data.settings.ctrlInstructions
+
+/** Every push: opening a session, moving it, or changing the setting all end here. Free unless it changed. */
+const syncCtrlInstructions = () => {
+  const id = currentSessionID()
+  if (!id || !opencodeStarted || harnessOf(id) !== "opencode") return
+  void opencode.syncCtrlInstructions(id, ctrlInstructionsOn(store.data.assignments[id]))
+}
+
 const push = () => {
   if (pushQueued) return
   pushQueued = true
   queueMicrotask(() => {
     pushQueued = false
+    syncCtrlInstructions()
     attention.refreshBadge(sessions)
     send("state", state())
+    for (const cb of [...changeListeners]) {
+      try {
+        cb()
+      } catch (err) {
+        console.error("[ctrl] cli listener failed", err)
+      }
+    }
   })
 }
 
@@ -332,6 +362,81 @@ const skill = new Skill(
 )
 let skillSuggested = false
 
+/** Where bin/ctrl lives: Contents/Resources/cli in the app, dist/cli in dev. */
+const CLI_DIR = app.isPackaged ? join(process.resourcesPath, "cli") : join(root, "dist/cli")
+const cliInstall = new CliInstall(join(CLI_DIR, "ctrl"))
+cliInstall.refresh()
+/** Teaches agents about the `ctrl` CLI; its ctrl.sh runs this app's CLI whatever else is in PATH. */
+const cliSkill = new Skill(
+  app.isPackaged ? join(process.resourcesPath, "skills", "ctrl") : join(root, "skills", "ctrl"),
+  "ctrl",
+  () => ({ ".ctrl-cli": `${join(CLI_DIR, "ctrl")}\n` }),
+)
+
+/** Where the ctrl command ended up, or why agents outside ctrl's terminals won't find it. */
+const cliNote = () => {
+  const { shadowedBy, notOnPath, link } = cliInstall.current
+  const tilde = (p: string) => p.replace(homedir(), "~")
+  if (shadowedBy) return ` ${tilde(shadowedBy)} comes first in your PATH, so agents reach ctrl through the ctrl skill`
+  if (notOnPath) return ` Add ${tilde(join(link, ".."))} to your PATH to run ctrl outside ctrl's terminals`
+  return ""
+}
+
+const installCli = () => {
+  try {
+    cliInstall.install()
+    if (cliSkill.refresh().state !== "external") cliSkill.install()
+    const note = cliNote()
+    toast({ icon: note ? "alert" : "check", message: `Installed the ctrl command and its skill.${note || " Agents can now drive ctrl"}` })
+  } catch (err) {
+    report(err)
+  }
+  push()
+}
+
+/** Nothing to set up: both skills there and the ctrl command linked (or something else owns its name). */
+const agentsReady = () =>
+  skill.refresh().state !== "missing" &&
+  cliSkill.refresh().state !== "missing" &&
+  !["missing", "stale"].includes(cliInstall.refresh().state)
+
+/** Installs what agents need: the read-session and ctrl skills, and the ctrl command. */
+const setUpAgents = () => {
+  try {
+    if (skill.refresh().state === "missing") skill.install()
+    if (["missing", "outdated"].includes(cliSkill.refresh().state)) cliSkill.install()
+    if (["missing", "stale"].includes(cliInstall.refresh().state)) cliInstall.install()
+    const note = cliNote()
+    toast({
+      icon: note ? "alert" : "check",
+      message: `Agents are set up: they can read sessions and drive ctrl.${note}`,
+    })
+  } catch (err) {
+    report(err)
+  }
+  push()
+}
+
+/** Once, after the welcome screen: offers the skills and the ctrl command in one go. */
+const suggestAgents = () => {
+  store.setUi({ agentsPrompted: true, skillPrompted: true })
+  if (agentsReady()) return
+  skillSuggested = true
+  toast(
+    {
+      icon: "link",
+      message: "Let agents read your sessions and drive ctrl? Installs ctrl's skills and the ctrl command",
+    },
+    { action: { label: "Install", run: setUpAgents } },
+  )
+}
+
+const uninstallCli = () => {
+  cliInstall.uninstall()
+  cliSkill.uninstall()
+  push()
+}
+
 const installSkill = () => {
   try {
     skill.install()
@@ -352,13 +457,15 @@ const suggestSkill = () => {
   )
 }
 
-/** ctrl's copy of the skill follows ctrl's version. */
+/** ctrl's copies of its skills follow ctrl's version. */
 const refreshSkill = () => {
-  if (skill.refresh().state !== "outdated") return
-  try {
-    skill.install()
-  } catch (err) {
-    console.error("[ctrl] couldn't refresh the read-session skill", err)
+  for (const s of [skill, cliSkill]) {
+    if (s.refresh().state !== "outdated") continue
+    try {
+      s.install()
+    } catch (err) {
+      console.error("[ctrl] couldn't refresh a skill", err)
+    }
   }
 }
 
@@ -388,6 +495,18 @@ const applyTheme = () => {
   )
   fxTerms.colorScheme(dark)
   push()
+}
+
+const applySettings = (patch: Partial<Settings>) => {
+  if (patch.fontSize !== undefined) patch = { ...patch, fontSize: clampFontSize(patch.fontSize) }
+  store.setSettings(patch)
+  if (patch.adapterModes) {
+    adapters.setModes(patch.adapterModes)
+    // Panels re-read their resources: without an adapter that's off, with or without its details.
+    send("resources:changed", null)
+  }
+  loadThemes()
+  applyTheme()
 }
 
 const clampFontSize = (size: number) => Math.min(FONT_SIZE.max, Math.max(FONT_SIZE.min, Math.round(size)))
@@ -467,24 +586,40 @@ const modelFor = (harness: Harness, space?: Space) => {
   return (defaultModelEnabled && (harness === "fx" ? defaultFxModel : defaultModel)) || undefined
 }
 
-const newSession = async (spaceID: string | null, directory?: string, harness?: Harness) => {
+type NewSessionOptions = {
+  /** Put it on screen (the UI always does; the CLI only with --focus) */
+  focus?: boolean
+  /** Overrides the space / app model */
+  model?: ModelRef
+}
+
+/** Returns the new session's id, or for fx the terminal that will report it (onOwner). */
+const newSession = async (
+  spaceID: string | null,
+  directory?: string,
+  harness?: Harness,
+  { focus = true, model: modelOverride }: NewSessionOptions = {},
+): Promise<{ id: string } | { pending: true; terminal: string }> => {
   const space = spaceID ? store.space(spaceID) : undefined
   harness ??= harnessFor(space)
   const cwd = directory || space?.directory || homedir()
-  const model = modelFor(harness, space)
+  const model = modelOverride ?? modelFor(harness, space)
   if (harness === "fx") {
-    if (!fxStarted) throw new Error(`fx isn't installed. Install it with: ${FX_INSTALL}`)
+    if (!fxStarted) throw new CliError("HARNESS_MISSING", `fx isn't installed. Install it with: ${FX_INSTALL}`)
     const args = model ? ["--model", model.id, ...(model.variant ? ["--effort", model.variant] : [])] : []
-    showFxTerm()
+    if (focus) showFxTerm()
     // The session joins the space once fx reports its id (onOwner).
-    fxTerms.create({ cwd, args, env: {}, spaceID })
+    const terminal = fxTerms.create({ cwd, args, env: {}, spaceID }, focus)
     push()
-    return
+    return { pending: true, terminal }
   }
-  if (!opencodeStarted) throw new Error("opencode isn't installed, so ctrl can't start an opencode session")
-  const id = await opencode.createSession(cwd, { model, instructions: space?.instructions })
+  if (!opencodeStarted)
+    throw new CliError("HARNESS_MISSING", "opencode isn't installed, so ctrl can't start an opencode session")
+  const id = await opencode.createSession(cwd, { model, instructions: space?.instructions, ctrl: ctrlInstructionsOn(spaceID) })
   if (spaceID) store.assign(id, spaceID)
-  openSession(id)
+  if (focus) openSession(id)
+  else push()
+  return { id }
 }
 
 /** New session in the current session's folder, space and harness; a plain new chat when none is open. */
@@ -646,13 +781,19 @@ const latestUndo = () => {
   return [...undos].reverse().find(([, u]) => u.expires > now)?.[0]
 }
 
-const archive = (sessionIDs: string[]) => {
+/** `toast: false` for the CLI, which hands the agent an undo command instead (docs/CLI.md, principle 8). */
+const archive = (sessionIDs: string[], { toast: withToast = true } = {}) => {
   const ids = sessionIDs.filter((id) => !store.data.archived[id])
   if (!ids.length) return
   const current = currentSessionID()
   const wasCurrent = current && ids.includes(current) ? current : null
   store.setArchived(ids, true)
   if (wasCurrent) leave(wasCurrent)
+  // Archiving counts as seeing it: no blue/red dot left behind if it comes back.
+  for (const id of ids) {
+    if (harnessOf(id) === "fx") markFxViewed(id)
+    else void opencode.markViewed(id)
+  }
   // Archived fx sessions don't need a process, unless they're busy.
   for (const id of ids) {
     if (harnessOf(id) !== "fx") continue
@@ -660,6 +801,7 @@ const archive = (sessionIDs: string[]) => {
     if (status !== "working" && status !== "blocked") fxTerms.closeSession(id)
   }
   push()
+  if (!withToast) return
   const title = ids.length === 1 ? sessionByID(ids[0])?.title : undefined
   toast(
     {
@@ -686,12 +828,13 @@ const leave = (sessionID: string) => {
 // the session right away and only delete it once the undo window has passed (or when ctrl quits).
 const pendingDeletes = new Map<string, ReturnType<typeof setTimeout>>()
 
+/** Returns false when it can't be deleted (an fx session open in another terminal). */
 const deleteSession = (sessionID: string) => {
   const title = sessionByID(sessionID)?.title
   const fxSession = fx.get(sessionID)
   if (harnessOf(sessionID) === "fx" && fxSession?.ownerPid !== undefined && !fxTerms.isOurPid(fxSession.ownerPid)) {
     toast({ icon: "alert", message: `“${title}” is open in another terminal. Quit fx there to delete it.` })
-    return
+    return false
   }
   if (currentSessionID() === sessionID) leave(sessionID)
   pendingDeletes.set(
@@ -705,9 +848,11 @@ const deleteSession = (sessionID: string) => {
       undo: () => {
         clearTimeout(pendingDeletes.get(sessionID))
         pendingDeletes.delete(sessionID)
+        push()
       },
     },
   )
+  return true
 }
 
 const commitDelete = async (sessionID: string) => {
@@ -734,7 +879,7 @@ const commitDelete = async (sessionID: string) => {
   }
 }
 
-const deleteSpace = (id: string) => {
+const deleteSpace = (id: string, { toast: withToast = true } = {}) => {
   const index = store.data.spaces.findIndex((s) => s.id === id)
   const space = store.data.spaces[index]
   if (!space) return
@@ -743,6 +888,7 @@ const deleteSpace = (id: string) => {
     .map(([sessionID]) => sessionID)
   store.deleteSpace(id)
   push()
+  if (!withToast) return
   toast(
     { icon: "trash", message: `Deleted space “${space.name}”` },
     { undo: () => store.restoreSpace(space, index, sessionIDs) },
@@ -896,17 +1042,7 @@ function registerIpc() {
   ipcMain.handle("session:rename", (_e, sessionID: string, title: string) =>
     renameSession(sessionID, title).catch(report),
   )
-  ipcMain.handle("settings:set", (_e, patch: Partial<Settings>) => {
-    if (patch.fontSize !== undefined) patch = { ...patch, fontSize: clampFontSize(patch.fontSize) }
-    store.setSettings(patch)
-    if (patch.adapterModes) {
-      adapters.setModes(patch.adapterModes)
-      // Panels re-read their resources: without an adapter that's off, with or without its details.
-      send("resources:changed", null)
-    }
-    loadThemes()
-    applyTheme()
-  })
+  ipcMain.handle("settings:set", (_e, patch: Partial<Settings>) => applySettings(patch))
   ipcMain.handle("sound:play", (_e, choice: string) => playSound(choice))
   ipcMain.handle("sound:pick", async (_e, event: SoundEvent) => {
     if (!win) return null
@@ -926,11 +1062,8 @@ function registerIpc() {
   ipcMain.handle("ui:set", (_e, patch: Partial<UiState>) => {
     store.setUi(patch)
     push()
-    // The skill offer waits for the welcome screen, so it doesn't land on top of it.
-    if (patch.onboarded && !store.data.ui.skillPrompted && skill.refresh().state === "missing") {
-      store.setUi({ skillPrompted: true })
-      setTimeout(suggestSkill, 1500)
-    }
+    // The agents offer waits for the welcome screen, so it doesn't land on top of it.
+    if (patch.onboarded && !store.data.ui.agentsPrompted) setTimeout(suggestAgents, 1500)
   })
   ipcMain.handle("session:archive", (_e, sessionID: string, archived: boolean) => {
     if (archived) return archive([sessionID])
@@ -1038,8 +1171,10 @@ function registerIpc() {
   ipcMain.on("resources:watch", (_e, sessionIDs: string[]) => adapters.watch(sessionIDs))
   ipcMain.handle("adapter:retry", (_e, id: string) => adapters.retry(id))
   ipcMain.handle("adapters:check", () => {
-    // Settings just opened: also pick up a skill installed or removed by hand.
+    // Settings just opened: also pick up a skill or CLI link installed or removed by hand.
     skill.refresh()
+    cliSkill.refresh()
+    cliInstall.refresh()
     push()
     return adapters.check()
   })
@@ -1052,6 +1187,8 @@ function registerIpc() {
     push()
   })
   ipcMain.handle("skill:referenced", () => suggestSkill())
+  ipcMain.handle("cli:install", () => installCli())
+  ipcMain.handle("cli:uninstall", () => uninstallCli())
   ipcMain.handle("update:check", () => updater.check())
   ipcMain.handle("update:install", () => updater.install().catch(report))
 
@@ -1068,6 +1205,160 @@ function registerIpc() {
     store.setTermSize(cols, rows)
   })
 }
+
+// ---------- CLI (docs/CLI.md) ----------
+
+const SOCKET = process.env.CTRL_SOCKET_PATH || join(app.getPath("userData"), SOCKET_NAME)
+setChildEnv({ socket: SOCKET, binDir: CLI_DIR })
+// The opencode service ctrl starts passes this on to agents' shells. Only the installed app's
+// path, which stays put (a dev path in a long-lived service would outlive the dev run).
+if (app.isPackaged && !(process.env.PATH ?? "").split(":").includes(CLI_DIR)) {
+  process.env.PATH = `${CLI_DIR}:${process.env.PATH ?? ""}`
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/** The fx terminal for a session, started in the background when it has none, and ready for input. */
+const fxTermFor = async (sessionID: string) => {
+  const session = fx.get(sessionID)
+  if (!session) throw new CliError("NOT_FOUND", `No fx session ${sessionID}`)
+  if (session.ownerPid !== undefined && !fxTerms.isOurPid(session.ownerPid))
+    throw new CliError("CONFLICT", `${sessionID} is open in fx in another terminal`, { hint: "Quit fx there first" })
+  const termID = fxTerms.bySession(sessionID)?.id ?? fxTerms.open(sessionID, { cwd: session.directory, env: {} }, true)
+  if (!termID) throw new CliError("INTERNAL", "Couldn't start fx")
+  await fxTerms.ready(termID)
+  return termID
+}
+
+/** Typed into fx: bracketed paste (no @file search, newlines kept), then Enter to send. */
+const typeIntoFx = async (termID: string, text: string, submit: boolean) => {
+  fxTerms.write(termID, `\x1b[200~${text}\x1b[201~`)
+  if (!submit) return
+  await sleep(150)
+  fxTerms.write(termID, "\r")
+}
+
+const cliHost: CliHost = {
+  store,
+  version: app.getVersion(),
+  socket: SOCKET,
+  sessions: () => (pendingDeletes.size ? sessions.filter((s) => !pendingDeletes.has(s.id)) : sessions),
+  currentSessionID,
+  termSession: (termID) => fxTerms.sessionOf(termID),
+  isLive: (id) => !!fxTerms.bySession(id) && fxTerms.bySession(id)!.exited === undefined,
+  activeTermID,
+  checks: () => ({
+    opencode: opencodeCheck,
+    fx: fxCheck,
+    update: updater.status,
+    cli: cliInstall.refresh(),
+    problem: state().problem,
+  }),
+  newSession: ({ spaceID, harness, directory, model, focus }) => newSession(spaceID, directory, harness, { focus, model }),
+  openSession,
+  renameSession,
+  move: (id, spaceID) => {
+    store.assign(id, spaceID)
+    if (store.data.archived[id]) store.setArchived([id], false)
+    push()
+  },
+  archive: (ids) => archive(ids, { toast: false }),
+  unarchive: (ids) => {
+    store.setArchived(ids, false)
+    push()
+  },
+  deleteSpace: (id) => deleteSpace(id, { toast: false }),
+  createSpace: (name) => store.createSpace(name),
+  changed: push,
+  prompt: async (id, text) => {
+    if (harnessOf(id) === "fx") return typeIntoFx(await fxTermFor(id), text, true)
+    if (!opencode.client) throw new CliError("HARNESS_MISSING", "The opencode service isn't connected")
+    await opencode.client.session.prompt({ sessionID: id, text })
+  },
+  promptTerminal: async (termID, text) => {
+    await fxTerms.ready(termID)
+    await typeIntoFx(termID, text, true)
+  },
+  type: async (id, text) => {
+    if (harnessOf(id) === "fx") return typeIntoFx(await fxTermFor(id), text, false)
+    terminal.paste(text)
+  },
+  stop: async (id) => {
+    if (harnessOf(id) === "fx") {
+      const term = fxTerms.bySession(id)
+      if (!term) return false
+      fxTerms.write(term.id, "\x1b")
+      return true
+    }
+    if (!opencode.client) throw new CliError("HARNESS_MISSING", "The opencode service isn't connected")
+    await opencode.client.session.interrupt({ sessionID: id })
+    return true
+  },
+  setSettings: applySettings,
+  setUi: (patch) => {
+    store.setUi(patch)
+    push()
+  },
+  themes: () => themes,
+  adapters: () => adapters.adapters,
+  toast: (message, viewSessionID) => toast({ icon: "check", message, viewSessionID }),
+  window: (action) => {
+    if (win && !win.isDestroyed() && !headless) {
+      if (action === "show") win.show()
+      if (action === "hide") win.hide()
+      if (action === "raise") {
+        win.show()
+        app.focus({ steal: true })
+        win.focus()
+      }
+    }
+    return { visible: !!win && !win.isDestroyed() && win.isVisible(), focused: !!win && !win.isDestroyed() && win.isFocused() }
+  },
+  renderer: (event, arg) => send(`ui:${event}`, arg),
+  home: (prefill) => {
+    showOpencodeTerm()
+    if (prefill) terminal.prefill(prefill)
+    else terminal.home()
+    push()
+  },
+  search: (query) => search.search(query),
+  resources: (ids) =>
+    search
+      .resources(ids)
+      .filter((r) => adapters.shows(r.type))
+      .map((r) => ({ ...r, meta: adapters.get(r) })),
+  resourcesByID: (ids) =>
+    search
+      .resourcesByID(ids)
+      .filter((r) => adapters.shows(r.type))
+      .map((r) => ({ ...r, meta: adapters.get(r) })),
+  fetchResources: (items, opts) => adapters.request(items, opts),
+  resourceMeta: (item) => adapters.get(item),
+  models: (harness, directory) => (harness === "fx" ? listFxModels() : opencode.listModels(directory)),
+  mcp: () => opencode.mcp,
+  reconnectMcp: (name) => opencode.reconnectMcp(name),
+  skill: (name, action) => {
+    const target = name === "ctrl" ? cliSkill : skill
+    if (action === "install") target.install()
+    if (action === "uninstall") target.uninstall()
+    if (action) push()
+    return target.refresh()
+  },
+  update: async (action) => {
+    if (action === "check") await updater.check()
+    else await updater.install()
+    return updater.status
+  },
+  digestScript: () =>
+    join(app.isPackaged ? join(process.resourcesPath, "skills") : join(root, "skills"), "read-session", "digest.mjs"),
+  nodeRunner: () => ({ command: process.execPath, env: { ELECTRON_RUN_AS_NODE: "1" } }),
+  onChange: (cb) => {
+    changeListeners.add(cb)
+    return () => changeListeners.delete(cb)
+  },
+}
+
+const cliServer = new CliServer(SOCKET, createHandlers(cliHost))
 
 const openExternal = (url: string) => {
   let parsed: URL
@@ -1232,6 +1523,7 @@ app.whenReady().then(async () => {
     app.dock?.hide()
   }
   registerIpc()
+  cliServer.start().catch((err) => console.error("[ctrl] cli socket failed", err))
   await terminal.init()
   watchBridge()
   loadThemes()
@@ -1245,13 +1537,12 @@ app.whenReady().then(async () => {
   void Promise.all([recheckOpencode(), recheckFx()]).then(restoreOpen)
   search.start()
   refreshSkill()
-  if (!store.data.ui.skillPrompted && skill.refresh().state === "missing") {
+  if (!store.data.ui.agentsPrompted) {
     win!.webContents.once("did-finish-load", () =>
       setTimeout(() => {
-        // One thing at a time: the welcome screen comes first (finishing it offers the skill).
+        // One thing at a time: the welcome screen comes first (finishing it offers this).
         if (!store.data.ui.onboarded) return
-        store.setUi({ skillPrompted: true })
-        suggestSkill()
+        suggestAgents()
       }, 3000),
     )
   }
@@ -1282,6 +1573,7 @@ app.on("before-quit", (event) => {
 app.on("window-all-closed", () => app.quit())
 
 app.on("will-quit", () => {
+  cliServer.stop()
   terminal.dispose()
   fxTerms.dispose()
   fx.stop()

@@ -157,6 +157,16 @@ button {
 }
 
 /* Marks fx sessions; opencode ones have no tag. */
+.agent-tag {
+  flex: none;
+  display: inline-flex;
+  color: var(--muted);
+}
+.agent-tag .icon {
+  width: 12px;
+  height: 12px;
+}
+
 .harness-tag {
   flex: none;
   font-family: "SF Mono", Menlo, monospace;

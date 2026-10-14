@@ -113,7 +113,9 @@ async function fetchOne(run: RunCli, req: MetaRequest): Promise<Fetched> {
   if (req.type === "slack-channel") {
     // Only the channel name is kept from the latest message's response.
     const data = await slackCli(run, ["messages", "list", d.channel, "--limit", "1"])
-    return data?.channel ? { meta: { title: `#${data.channel}`, subtitle: d.workspace }, cache: UNTIL_MENTIONED } : missing()
+    return data?.channel
+      ? { meta: { title: `#${data.channel}`, subtitle: d.workspace, fields: { channel: data.channel } }, cache: UNTIL_MENTIONED }
+      : missing()
   }
   const m = await slackCli(run, ["messages", "get", permalink(d)])
   if (!m) return missing()
@@ -122,6 +124,7 @@ async function fetchOne(run: RunCli, req: MetaRequest): Promise<Fetched> {
     meta: {
       title: firstLine(plain(m.text ?? "")) ?? "Thread",
       subtitle: [m.channel && `#${m.channel}`, author].filter(Boolean).join(" · "),
+      fields: { channel: m.channel ?? null, author: author ?? null, text: m.text ? plain(m.text).trim().slice(0, 2000) : null },
     },
     // Root messages and channel names rarely change: keep them until the thread is shared again.
     cache: UNTIL_MENTIONED,

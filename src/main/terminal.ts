@@ -4,6 +4,7 @@ import { homedir } from "node:os"
 import { createRequire } from "node:module"
 import { WebSocketServer, type WebSocket } from "ws"
 import type { IPty } from "node-pty"
+import { childEnv } from "./child-env"
 import { findOpencode } from "./opencode-bin"
 
 const pty: typeof import("node-pty") = createRequire(import.meta.url)("node-pty")
@@ -103,7 +104,7 @@ export class Terminal {
     const bin = findOpencode()
     const args = isSessionID(sessionID) ? ["-s", sessionID] : []
     const env = {
-      ...process.env,
+      ...childEnv(),
       TERM: "xterm-256color",
       COLORTERM: "truecolor",
       CTRL_BRIDGE_URL: this.bridgeUrl,
@@ -234,6 +235,11 @@ export class Terminal {
 
   write(data: string) {
     this.proc?.write(data)
+  }
+
+  /** Bracketed paste into the TUI's prompt: inserted as text, not submitted. */
+  paste(text: string) {
+    this.proc?.write(`\x1b[200~${text}\x1b[201~`)
   }
 
   resize(cols: number, rows: number) {

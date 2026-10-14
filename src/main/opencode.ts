@@ -2,9 +2,11 @@ import { OpenCode, type ModelInfo, type PermissionRequest, type SessionInfo } fr
 import { Service } from "@opencode/client/service"
 import { homedir } from "node:os"
 import { findOpencode } from "./opencode-bin"
+import { CTRL_INSTRUCTIONS } from "../shared/ctrl-instructions"
 import type { McpServerItem, ModelChoices, ModelOption, ModelRef, OpencodeServer, SessionItem } from "../shared/types"
 
 const SPACE_INSTRUCTIONS_KEY = "ctrl.space"
+const CTRL_INSTRUCTIONS_KEY = "ctrl.cli"
 /** The TUI runs in ~, so that's whose MCP servers count. CTRL_MCP_DIR is a debug hook (docs/DEVELOPMENT.md). */
 const MCP_DIR = process.env.CTRL_MCP_DIR || homedir()
 
@@ -413,7 +415,7 @@ export class OpenCodeService {
     await this.client?.session.view({ sessionID, idle: at }).catch(() => {})
   }
 
-  async createSession(directory: string, opts: { model?: ModelRef; instructions?: string } = {}) {
+  async createSession(directory: string, opts: { model?: ModelRef; instructions?: string; ctrl?: boolean } = {}) {
     const session = await this.client!.session.create({ location: { directory }, model: opts.model })
     if (opts.instructions?.trim()) {
       // Durable and invisible in the transcript: opencode adds it to the system context of every turn.
@@ -423,8 +425,27 @@ export class OpenCodeService {
         value: opts.instructions.trim(),
       })
     }
+    if (opts.ctrl) await this.syncCtrlInstructions(session.id, true)
     await this.fetchSession(session.id)
     return session.id
+  }
+
+  /** What ctrl last set per session this run, so syncing the session on screen on every push is free. */
+  private ctrlApplied = new Map<string, boolean>()
+
+  /**
+   * Adds or removes the ctrl instruction. Called for new sessions and for the one on screen, so sessions ctrl
+   * didn't create (TUI `/new`, older ones) pick it up when opened, and setting changes reach them the same way.
+   */
+  async syncCtrlInstructions(sessionID: string, on: boolean) {
+    if (!this.client || this.ctrlApplied.get(sessionID) === on) return
+    this.ctrlApplied.set(sessionID, on)
+    const entry = this.client.session.instructions.entry
+    const key = CTRL_INSTRUCTIONS_KEY
+    // No retry on failure: this runs on every push, and removing an entry that was never set fails too.
+    await (on ? entry.put({ sessionID, key, value: CTRL_INSTRUCTIONS }) : entry.remove({ sessionID, key })).catch(
+      (err) => on && console.error("[ctrl] ctrl instruction", sessionID, message(err)),
+    )
   }
 
   async listModels(directory?: string): Promise<ModelChoices> {

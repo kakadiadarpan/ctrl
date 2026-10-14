@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react"
 import { RESOURCE_TYPES, resourceType } from "../shared/adapters"
-import type { AdapterInfo, AppState, ResourceItem, ResourceMeta } from "../shared/types"
-import { age } from "./format"
+import type { AdapterInfo, AppState, Harness, ResourceItem, ResourceMeta } from "../shared/types"
+import { harnessOf } from "../shared/types"
+import { age, shortPath } from "./format"
 import { Icon } from "./icons"
+import { RESOURCE_DRAG, type ResourceDrag, sessionMention } from "./ReferenceDrop"
 
 const PAGE_SIZE = 8
 
@@ -47,7 +49,17 @@ export function ResourcesPanel({ state, onClose }: { state: AppState; onClose():
     return Object.keys(state.assignments).filter((id) => state.assignments[id] === space.id)
   }, [current, scope, space, state.assignments])
 
-  const items = useResources(sessionIDs)
+  const fetched = useResources(sessionIDs)
+  // Referenced sessions get their title and state from the sidebar's list, so renames, archiving
+  // and deletes show up without reindexing. Archiving only hides a session: the reference stays.
+  const items = useMemo(() => {
+    const byID = new Map(state.sessions.map((s) => [s.id, s]))
+    const spaceName = new Map(state.spaces.map((s) => [s.id, s.name]))
+    return fetched
+      .filter((i) => i.type !== "session" || i.data.id !== current)
+      .map((i) => (i.type === "session" ? { ...i, meta: sessionMeta(i, state, byID.get(i.data.id), spaceName) } : i))
+  }, [fetched, current, state])
+  const target = current ? harnessOf(current) : "opencode"
   const groups = useMemo(
     () =>
       RESOURCE_TYPES.map((type) => ({ type, items: items.filter((i) => i.type === type.id) })).filter(
@@ -83,7 +95,7 @@ export function ResourcesPanel({ state, onClose }: { state: AppState; onClose():
           <div className="empty">Open a session to see the links shared in it.</div>
         ) : groups.length === 0 ? (
           <div className="empty">
-            No links yet. PRs, repos, Notion docs, Slack threads, Linear issues and Vercel deployments shared in this{" "}
+            No links yet. Referenced sessions, PRs, repos, Notion docs, Slack threads, Linear issues and Vercel deployments shared in this{" "}
             {scope === "space" ? "space" : "session"} show up here.
           </div>
         ) : (
@@ -94,6 +106,7 @@ export function ResourcesPanel({ state, onClose }: { state: AppState; onClose():
               items={g.items}
               source={state.adapters.find((a) => a.mode === "live" && a.types.includes(g.type.id))}
               spaceScope={scope === "space"}
+              target={target}
             />
           ))
         )}
@@ -102,7 +115,50 @@ export function ResourcesPanel({ state, onClose }: { state: AppState; onClose():
   )
 }
 
-function ResourceGroup(props: { label: string; items: ResourceItem[]; source?: AdapterInfo; spaceScope: boolean }) {
+function sessionMeta(
+  item: ResourceItem,
+  state: AppState,
+  session: AppState["sessions"][number] | undefined,
+  spaceName: Map<string, string>,
+): ResourceMeta {
+  const fx = harnessOf(item.data.id) === "fx"
+  if (!session)
+    return {
+      subtitle: "No longer in ctrl's session list",
+      tone: "muted",
+      chips: [{ text: "deleted", tone: "bad" }, ...(fx ? [{ text: "fx", tone: "muted" as const }] : [])],
+      details: ["Deleted, or not loaded yet"],
+      fetched: Date.now(),
+    }
+  const space = spaceName.get(state.assignments[session.id] ?? "")
+  const archived = state.archived[session.id]
+  const status = (
+    {
+      "needs-input": { text: "needs you", tone: "warn" },
+      running: { text: "running", tone: "open" },
+      failed: { text: "failed", tone: "bad" },
+    } as const
+  )[session.status as "needs-input" | "running" | "failed"]
+  return {
+    title: session.title,
+    subtitle: space ? `${space} · ${shortPath(session.directory)}` : shortPath(session.directory),
+    tone: archived ? "muted" : status?.tone,
+    chips: [
+      ...(archived ? [{ text: "archived", tone: "muted" as const, title: `Archived ${age(archived)} ago` }] : []),
+      ...(status ? [status] : []),
+      ...(fx ? [{ text: "fx", tone: "muted" as const }] : []),
+    ],
+    fetched: session.updated,
+  }
+}
+
+function ResourceGroup(props: {
+  label: string
+  items: ResourceItem[]
+  source?: AdapterInfo
+  spaceScope: boolean
+  target: Harness
+}) {
   const [shown, setShown] = useState(PAGE_SIZE)
   return (
     <section className="section">
@@ -111,7 +167,13 @@ function ResourceGroup(props: { label: string; items: ResourceItem[]; source?: A
         <span className="count">{props.items.length}</span>
       </div>
       {props.items.slice(0, shown).map((item) => (
-        <ResourceRow key={item.id} item={item} source={props.source} spaceScope={props.spaceScope} />
+        <ResourceRow
+          key={item.id}
+          item={item}
+          source={props.source}
+          spaceScope={props.spaceScope}
+          target={props.target}
+        />
       ))}
       {props.items.length > shown && (
         <button className="row show-more" onClick={() => setShown((n) => n + PAGE_SIZE)}>
@@ -136,7 +198,10 @@ function metaTooltip(meta: ResourceMeta | undefined, source: AdapterInfo | undef
   return [...(meta.details ?? []), `Updated from ${source.name} ${age(meta.fetched)} ago`]
 }
 
-function ResourceRow({ item, source, spaceScope }: { item: ResourceItem; source?: AdapterInfo; spaceScope: boolean }) {
+function ResourceRow(props: { item: ResourceItem; source?: AdapterInfo; spaceScope: boolean; target: Harness }) {
+  const { item, source, spaceScope } = props
+  const isSession = item.type === "session"
+  const deleted = isSession && item.meta?.chips?.some((c) => c.text === "deleted")
   const type = resourceType(item.type)
   const meta = item.meta?.missing ? undefined : item.meta
   const parsed = type?.describe(item.data) ?? { title: item.url }
@@ -146,13 +211,29 @@ function ResourceRow({ item, source, spaceScope }: { item: ResourceItem; source?
   const [copied, setCopied] = useState(false)
   const where = spaceScope && item.sessions > 1 ? ` in ${item.sessions} sessions` : ""
   const tooltip = [
-    meta?.title ? `${title}\n${item.url}` : item.url,
-    ...metaTooltip(item.meta, source),
+    isSession ? `${title}\n${item.data.id}` : meta?.title ? `${title}\n${item.url}` : item.url,
+    ...(isSession ? (meta?.details ?? []) : metaTooltip(item.meta, source)),
     `Mentioned ${item.mentions}×${where}, last ${age(item.last)} ago${item.sharedByYou ? " · shared by you" : ""}`,
   ].join("\n")
 
+  const text = isSession ? sessionMention({ id: item.data.id, title }, props.target) : item.url
+
   return (
-    <div className="row resource" title={tooltip} onClick={() => void window.ctrl.openExternal(item.url)}>
+    <div
+      className="row resource"
+      title={tooltip}
+      draggable
+      onDragStart={(e) => {
+        const drag: ResourceDrag = { text, session: isSession }
+        e.dataTransfer.setData(RESOURCE_DRAG, JSON.stringify(drag))
+        e.dataTransfer.setData("text/plain", text)
+        e.dataTransfer.effectAllowed = "copy"
+      }}
+      onClick={() => {
+        if (!isSession) void window.ctrl.openExternal(item.url)
+        else if (!deleted) void window.ctrl.openSession(item.data.id)
+      }}
+    >
       <span className={`resource-icon${meta?.tone ? ` tone-${meta.tone}` : ""}`}>
         <Icon name={type?.icon ?? "link"} />
       </span>
@@ -174,10 +255,10 @@ function ResourceRow({ item, source, spaceScope }: { item: ResourceItem; source?
       <span className="meta">{age(item.last)}</span>
       <button
         className="icon-btn row-action"
-        title={copied ? "Copied" : "Copy link"}
+        title={copied ? "Copied" : isSession ? "Copy reference" : "Copy link"}
         onClick={(e) => {
           e.stopPropagation()
-          void navigator.clipboard.writeText(item.url).then(() => {
+          void navigator.clipboard.writeText(text).then(() => {
             setCopied(true)
             setTimeout(() => setCopied(false), 1200)
           })

@@ -25,39 +25,50 @@ so ctrl keeps a process per open session and reads its files and terminal output
 
 ## Support table
 
-✅ supported · ⚠️ partial · ❌ not supported
+✅ supported · ⚠️ partial · ⏳ waiting on the harness · ❌ not supported
 
 | Feature | opencode | fx | Notes |
 |---|---|---|---|
 | Sessions in the sidebar, spaces, Recents | ✅ | ✅ | |
 | Mix both kinds in one space | ✅ | ✅ | |
-| Archive / unarchive | ✅ | ✅ | ctrl-side, the harness is untouched |
+| Archive / unarchive | ✅ | ✅ | ctrl-side; archiving also marks the session read |
 | Move between spaces, drag and drop | ✅ | ✅ | |
 | ⌘1–9 jump, ⌘P title search | ✅ | ✅ | |
 | ⌘P message search | ✅ | ✅ | opencode: through the service · fx: tails `events.jsonl` |
 | Resources panel (links per session / space) | ✅ | ✅ | Same index as search |
+| Referenced sessions in Resources | ✅ | ✅ | fx references show once fx writes the turn to disk |
 | Links and search updated during a turn | ⚠️ | ⚠️ | opencode: links in your prompt right away, the agent's at the end of the turn · fx: everything at the end of the turn, since fx only saves a turn (your prompt included) once it's done |
 | Rename | ✅ | ⚠️ | fx rewrites its title while it runs, so the rename is written once no fx process has the session |
 | Delete | ✅ | ✅ | fx: the session folder goes to the Trash |
 | New session in a space's folder | ✅ | ✅ | |
 | Harness per space / app default | ✅ | ✅ | |
 | Custom model per space / app default | ✅ | ✅ | Picked separately per harness · fx: `--model` and `--effort` |
+| Variant / effort picker | ✅ | ⏳ | fx: waiting on a release with [vercel-labs/fx#1171](https://github.com/vercel-labs/fx/pull/1171) (merged after v0.0.13), which adds each model's `efforts` to `fx models --json`. ctrl already reads it, so the picker fills in after `fx upgrade`. Until then, set it with the CLI: `--fx-model "<model>#<effort>"` |
 | Space instructions | ✅ | ❌ | fx has no way to take extra instructions for a session |
+| ctrl instructions (agent knows it's in ctrl) | ✅ | ❌ | Same reason. fx agents still find `ctrl` through the `ctrl` skill |
 | Switching sessions | ✅ instant | ⚠️ | fx: instant once open, about 1s the first time (`fx resume`) |
 | Many sessions open at once | ✅ | ⚠️ | fx: up to 12 live processes, the least recently used idle ones are closed past that |
 | Turns keep running when ctrl quits | ✅ | ❌ | fx has no background service: quitting stops the turn, send `continue` after reopening |
 | Sessions open at quit come back | ✅ | ⚠️ | fx: reopened at launch (`fx resume`), with a compact transcript instead of the full screen |
-| Status: running | ✅ | ✅ | fx: OSC 7501 status reports, else the last line of `events.jsonl` |
-| Status: needs you (permission, question) | ✅ | ⚠️ | fx: only for sessions open in ctrl (OSC 7501) |
-| Status: failed | ✅ | ⚠️ | fx: only for sessions open in ctrl |
+| Status: running | ✅ | ✅ | fx: OSC 7501 status reports, else `recovery.json` (the turn in progress) or the last line of `events.jsonl` |
+| Status: needs you (permission, question) | ✅ | ⚠️ | fx: only for sessions open in ctrl, with an fx that sends OSC 7501 (0.0.13 doesn't) |
+| Status: failed | ✅ | ⚠️ | fx: only for sessions open in ctrl, with an fx that sends OSC 7501 (0.0.13 doesn't) |
+| `ctrl session read` of a turn in progress | ✅ | ✅ | fx: from `recovery.json`, since fx logs a turn only once it ends |
 | Status: finished, unread | ✅ | ✅ | fx: read state kept by ctrl |
 | Status of sessions that aren't open | ✅ live | ⚠️ | fx: read from files on disk |
 | Notifications, sounds, dock badge | ✅ | ⚠️ | Same as status: fx's "needs you" and "failed" only for open sessions. fx's own sounds are turned off (`FX_SOUND=off`) |
 | Sessions open in another terminal | ✅ | ⚠️ | fx allows one process per session: shown, but ctrl can't open or delete them until that fx quits |
 | Reference a session (drag onto the terminal) | ✅ | ✅ | Works across harnesses, with the `read-session` skill |
 | Drop files from Finder | ✅ | ✅ | |
+| Drag a resource onto the terminal | ✅ | ✅ | Pastes its link, or its session mention |
 | ⌘-click links, wrapped URLs | ✅ | ✅ | |
 | Theme for the terminal | ✅ | ⚠️ | fx follows ctrl's light/dark; pick an fx theme in `~/.fx/settings.json` |
 | MCP server status and Fix | ✅ | ❌ | opencode's MCP servers only |
 | `/new`, `/resume` inside the terminal followed by the sidebar | ✅ | ✅ | |
+| `ctrl` CLI: list, file, archive, focus, rename, reference, read | ✅ | ✅ | [CLI.md](CLI.md) |
+| `ctrl` CLI: `self` | ✅ | ✅ | opencode: `OPENCODE_SESSION_ID` · fx: `CTRL_TERM_ID`, only in fx processes ctrl runs |
+| `ctrl session new` | ✅ | ⚠️ | fx: waits up to 15s for fx to report the new session's id |
+| `ctrl session send` | ✅ background | ⚠️ | fx: typed into its fx process (started in the background), CONFLICT when open in another terminal |
+| `ctrl` typing without sending (`--no-submit`, `reference`) | ⚠️ | ✅ | opencode: one TUI, so the session must be on screen (`--focus`) |
+| `ctrl session stop` | ✅ | ⚠️ | fx: Escape to its fx process, only for sessions open in ctrl |
 | Welcome screen | ✅ | ✅ | First launch: shows what's installed, lets you pick when both are, install commands when neither is |

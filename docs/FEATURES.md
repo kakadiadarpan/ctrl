@@ -43,7 +43,8 @@ where it lives.
 - Move sessions between spaces by drag and drop, onto Recents to unassign, or via right-click → Move to
 - ⋯ menu: new session in space, rename, space settings, archive all sessions, delete space (`src/main/main.ts`)
 - Space settings for new sessions started from ctrl in that space: folder, harness, model (toggle + variant,
-  one per harness), instructions attached as an invisible session instruction (opencode only)
+  one per harness), instructions attached as an invisible session instruction (opencode only), ctrl
+  instructions Default / On / Off
   (`src/renderer/SpaceSettings.tsx`)
 - Status rollup on a space: shows the most urgent status of its sessions (`src/renderer/StatusIcon.tsx`)
 
@@ -55,12 +56,16 @@ where it lives.
   to the Trash
 - fx: right-click → Reveal session folder, Quit fx process
 - Archive / unarchive: hover button, right-click, ⌘W, or "Archive all sessions" on a space. Stored in
-  ctrl's `state.json`, opencode is untouched (`src/main/store.ts`)
+  ctrl's `state.json`, opencode is untouched (`src/main/store.ts`) apart from archiving marking the session
+  read. Archived rows never show the unread / failed dot
 - **Recents**: every non-archived session, newest first, 10 at a time with Show more, foldable (state saved)
+- **Created by an agent**: sessions an agent makes with `ctrl session new` show a small bot icon, and the
+  tooltip names the agent and the session it ran in. Stored in `state.json` (`createdByAgent`), returned by the CLI
 - **Archived**: most recently archived first, 10 at a time with Show more, foldable (state saved)
 - Status per row, most urgent first: needs input (permission / question), running, failed (unread),
   finished (unread), otherwise time since last update (`src/renderer/StatusIcon.tsx`). fx: from OSC 7501
-  reports of the processes ctrl runs, else the last line of `events.jsonl`; read state kept by ctrl
+  reports of the processes ctrl runs, else `recovery.json` (turn in progress) or the last line of
+  `events.jsonl`; read state kept by ctrl
   (`src/main/fx.ts`)
 - Sidebar list patched from opencode events instead of re-listing (`src/main/opencode.ts`); fx sessions
   from one scan of `~/.fx/sessions`, then an fs watcher re-reads only the folder that changed (`src/main/fx.ts`)
@@ -82,9 +87,11 @@ where it lives.
 - Resource adapters, one file per service in `src/shared/adapters/`, registered in `adapters/index.ts`: each
   declares the link types it recognizes (URL → canonical key, icon, offline title) and, optionally, a `live`
   part that fetches details through the service's own CLI (ctrl never handles tokens). Live results are
-  display-ready (title, subtitle, tone, chips) and carry a cache policy (max age, refetch when mentioned
-  again); one scheduler fetches only while the panel is open and the window focused, and caches on disk
-  (`src/main/adapters/service.ts`). Settings → Resource adapters lists them with a status
+  display-ready (title, subtitle, tone, chips), carry the same details as plain `fields` for agents (PR state,
+  draft, CI, review, mergeable, author; deployment state, target, branch; Slack channel, author, text), and a
+  cache policy (max age, refetch when mentioned again); one scheduler fetches only while the panel is open and
+  the window focused, and caches on disk (`src/main/adapters/service.ts`). The CLI shares that cache and its
+  pauses (see Command line). Settings → Resource adapters lists them with a status
   dot (CLI checked on launch and when Settings opens: ready, not installed, not logged in), a mode select
   (Off hides its links, Links only, Live details) and, when the CLI isn't set up, a copyable agent prompt to
   install and log it in, plus Check again
@@ -92,6 +99,12 @@ where it lives.
   - Vercel (live, `vercel api`): deployment commit/branch/build state (15s while building), projects' latest production
   - Slack (live, `slack-cli`): thread root message, channel, author; channel names; kept until mentioned again
   - Linear, Notion: links only
+  - Sessions (`src/shared/adapters/sessions.ts`): `@session[Title](id)` references, as dropped on the terminal,
+    list the referenced session with its current title, space and folder, plus `archived`, `running`,
+    `needs you`, `failed` or `deleted` chips from the sidebar's list. Archiving the referenced session keeps the
+    row. Click opens it in ctrl, the copy button copies the reference, dragging it onto the terminal pastes
+    the reference. A session never lists itself.
+    `ctrl resources list` returns them as type `session` with the referenced session (or `null` once deleted)
 
 ## Terminal
 
@@ -100,8 +113,11 @@ where it lives.
 - ⌘-click links to open them in the browser, including URLs wrapped across lines (`src/renderer/wrapped-links.ts`)
 - Drag a session onto the terminal to paste `@session[Title](id)` (`session[…]` without the `@` in fx, which
   reads `@` as a file); the `read-session` skill lets the agent read it, opencode or fx, from either harness,
-  with or without node installed (`src/renderer/ReferenceDrop.tsx`, `skills/read-session`)
+  with or without node installed (`src/renderer/ReferenceDrop.tsx`, `skills/read-session`). An fx turn still
+  in progress shows as `Turn N · running` (read from `recovery.json`)
 - Drop files from Finder onto the terminal to paste their escaped paths (`src/renderer/ReferenceDrop.tsx`)
+- Drag a row from the resources panel onto the terminal to paste its link, or its session mention for a
+  referenced session (`src/renderer/ResourcesPanel.tsx`, `src/renderer/ReferenceDrop.tsx`)
 - Text size: stepper in settings, ⌘+ / ⌘− / ⌘0
 - Joined emoji (🏄‍♂️, 👩‍💻, flags) render as one glyph with the right width (`@xterm/addon-unicode-graphemes`)
 
@@ -112,6 +128,10 @@ where it lives.
 - Terminal text size
 - Sessions: harness for new sessions, what's installed, default model per harness (toggle, searchable
   picker grouped by provider, variant / effort picker) (`src/renderer/ModelPicker.tsx`)
+- ctrl instructions (on by default, Show text): an invisible instruction entry (`ctrl.cli`) on opencode sessions
+  telling the agent it runs in ctrl and how to look around with the `ctrl` CLI. Added at creation and synced on
+  the session on screen, so older and TUI-started sessions get it when opened; spaces can override
+  (`src/shared/ctrl-instructions.ts`, `syncCtrlInstructions()` in `src/main/opencode.ts`)
 - MCP servers status, with a sticky toast + Fix button when one fails or needs auth
 - Rebindable shortcuts (`src/renderer/ShortcutSettings.tsx`, `src/shared/shortcuts.ts`)
 - Notifications: dock badge with sessions waiting on you, macOS notifications when a background session
@@ -120,7 +140,7 @@ where it lives.
   event (or None), preview button, optional "also when ctrl is focused". One sound per burst (most urgent wins),
   played with `afplay`, and it replaces the system notification sound (`src/main/sound.ts`). fx's own sounds are
   always off (`FX_SOUND=off`), so they never double up with ctrl's
-- Agent skill: install / uninstall read-session, with its status
+- Agents: install / uninstall the read-session skill, and the `ctrl` command line with its skill, with status
 - About: ctrl's version, update status, Check for updates / Update and restart
 - Resizable sidebar (200–520px, double-click edge to reset), width saved (`src/renderer/ResizeHandle.tsx`)
 
@@ -129,6 +149,42 @@ where it lives.
 - Toasts are the single in-app notification: undo (⌘Z), View, one action button, sticky mode
   (`src/renderer/Toast.tsx`)
 - Sidebar banner only when ctrl can't reach opencode / the TUI, or an action failed
+
+## Command line (`ctrl`)
+
+- `ctrl` CLI for agents: JSON in/out, self-describing (`ctrl help --json`, `ctrl docs`), stable error codes
+  with hints. Principles and conventions in [CLI.md](CLI.md), every command in [CLI-REFERENCE.md](CLI-REFERENCE.md)
+  (`src/cli/cli.ts`, `src/shared/cli/`)
+- Sessions: list / filter / page, get, new (space settings apply, `--prompt`, background unless `--focus`),
+  focus, rename, move, archive / unarchive, send, wait for a status, stop, `ref`,
+  reference one session in another, read a session's digest (`src/main/cli-handlers.ts`)
+- Spaces: list, get, create, rename, set folder / harness / model / instructions / ctrl instructions, reorder, fold, archive all,
+  delete
+- Settings: list (typed, with allowed values and defaults), get, set, reset, as dotted keys
+- UI: what's on screen, opencode home screen with a prefilled prompt, window show / hide / raise, resources
+  panel, sidebar width, Recents / Archived folding, settings page, ⌘P palette with a query, toast
+- Search, resources, models, MCP servers, skills, app status / launch / updates, and an NDJSON `events` stream
+- Resources with live details: `resources list` fetches what's due like the panel does (same cache policy,
+  only the returned items, window focus not needed), waits up to `--wait` (5s) and marks the rest `pending`;
+  `--cached` skips fetching. `resources refresh [<id|url>...]` refetches regardless of the cache, by id, URL or
+  scope. Both report adapters that couldn't fetch in `errors` (rate limited with `retryAt`, CLI not set up with
+  the fixing command)
+- Selectors: `self` (the calling session, via `OPENCODE_SESSION_ID` or ctrl's `CTRL_TERM_ID` in fx ptys),
+  `current`, `name:<title>`; ambiguous names list candidates
+- Sessions an agent creates are marked `createdByAgent: {agent, by, at}` (by = the agent's own session, via
+  `self`). Agents are detected from the env their harness sets (`AI_AGENT`, `AGENT=1`, `CLAUDECODE`,
+  `CURSOR_AGENT`, ctrl's `CTRL_TERM_ID` for fx); ctrl strips those from the terminals it spawns
+- No toasts for CLI actions: archive, archive-all and space delete reply with an `undo` command instead;
+  only `ui toast` shows one
+- Agents can't delete sessions, only archive them (reversible, the reply's `undo` brings them back); nothing
+  changes the screen without `--focus` / `focus`
+- Unix socket in the state folder (0600), one per ctrl (dev and test runs get their own); stale sockets
+  cleaned at launch (`src/main/cli-server.ts`)
+- Works in ctrl's terminals without installing (PATH + `CTRL_SOCKET` set in the TUI and fx ptys,
+  `src/main/child-env.ts`); Settings → Agents installs `~/.local/bin/ctrl` and the ctrl skill, and warns when
+  another `ctrl` comes first in PATH or its folder isn't in PATH (`src/main/cli-install.ts`, `skills/ctrl`)
+- `install.sh` links `~/.local/bin/ctrl` into the app bundle (relinks other ctrl copies, leaves foreign files
+  alone); after the welcome screen, one "set up agents" toast installs both skills and the link
 
 ## Install & updates
 
@@ -146,8 +202,8 @@ where it lives.
 - Updates from GitHub Releases through GitHub's public API, no login: checked at launch and every 6h, sticky toast with Update, which
   downloads, swaps the app bundle once ctrl quits and relaunches. Settings → About shows the version
   and a manual check (`src/main/updater.ts`)
-- read-session skill: offered in a toast once the welcome screen is done and when a session is referenced without it,
-  installed into `~/.config/opencode/skills` from Settings → Agent skill (install / uninstall), refreshed
+- read-session skill: offered in a toast once the welcome screen is done (with the ctrl skill and command) and when a session is referenced without it,
+  installed into `~/.config/opencode/skills` from Settings → Agents (install / uninstall), refreshed
   when ctrl's copy changes, and copies ctrl didn't make are left alone (`src/main/skill.ts`)
 - arm64 and x64 builds, published with `npm run release` (`scripts/package.mjs`, `scripts/release.mjs`)
 

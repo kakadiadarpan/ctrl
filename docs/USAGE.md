@@ -4,6 +4,8 @@
 
 The one-liner in the [README](../README.md#-install) installs the latest release into `/Applications`.
 
+- **The `ctrl` command:** the script also links `~/.local/bin/ctrl`, the command line agents use to drive
+  ctrl ([below](#let-agents-drive-ctrl)).
 - **Why a script:** ctrl isn't notarized. Files curl downloads aren't quarantined, so the app opens without a
   Gatekeeper prompt.
 - **Downloaded the zip from the browser instead?** macOS will say it's damaged. Run
@@ -12,10 +14,10 @@ The one-liner in the [README](../README.md#-install) installs the latest release
   **Settings → About** has a manual check. The same one-liner also reinstalls.
 - **First launch:** a welcome screen shows which harnesses (fx, opencode) are installed, with install commands
   for the missing ones. With both, you pick the one new sessions start with. **Settings → About → Welcome
-  screen** shows it again. Then ctrl offers to install the `read-session` skill (also in **Settings → Agent
-  skill**), so agents can read sessions you drag onto the terminal.
+  screen** shows it again. Then ctrl offers to install the `read-session` skill (also in **Settings → Agents**), so agents can read sessions you drag onto the terminal.
 - **Uninstall:** delete `/Applications/ctrl.app` and `~/Library/Application Support/ctrl`, plus
-  `~/.config/opencode/skills/read-session` if you installed the skill. Your opencode sessions aren't touched.
+  `~/.config/opencode/skills/read-session` and `~/.config/opencode/skills/ctrl` if you installed the skills,
+  and `~/.local/bin/ctrl` if you installed the command line. Your opencode sessions aren't touched.
 
 ## Everyday use
 
@@ -32,6 +34,13 @@ The one-liner in the [README](../README.md#-install) installs the latest release
     falls back to **Settings → Custom model**; when that's off too, ctrl passes no model and the harness picks
   - instructions (opencode only): attached as a session instruction entry (`ctrl.space`), invisible in the
     chat but part of the model's context on every turn
+  - ctrl instructions (opencode only): Default follows **Settings → Sessions → ctrl instructions**, or On / Off
+    for this space
+- **ctrl instructions** (on by default): an invisible session instruction entry (`ctrl.cli`) telling the agent it
+  runs inside ctrl and how to look around with the `ctrl` CLI (`session get self`, `space get self`, the other
+  sessions and resources in its space). Added when ctrl creates a session, and synced on the session on screen,
+  so older sessions or ones started from the TUI get it (or lose it, when turned off) once you open them. Text
+  in `src/shared/ctrl-instructions.ts`
 - ⌘1–9 jumps to the Nth visible session; hold ⌘ to see the numbers
 - Drag a session onto the terminal to reference it: ctrl pastes `@session[Title](id)` (`session[…]` in
   fx, where `@` attaches a file) and
@@ -46,3 +55,17 @@ The one-liner in the [README](../README.md#-install) installs the latest release
 - Archive, archive all, delete space and delete session show an undo toast (⌘Z while it's up).
   Session deletes are held back until the toast expires (or ctrl quits), since opencode can't
   restore them. Deleted fx sessions go to the Trash
+
+## Let agents drive ctrl
+
+Agents in ctrl's terminals can run `ctrl` to create spaces and sessions, file and archive them, reference
+one session from another, change settings and switch what's on screen. Ask them in plain words ("start a
+session per PR in the reviews space"); the `ctrl` skill tells them how.
+
+- The installer links it at `~/.local/bin/ctrl`, and the first launch offers to install the ctrl skill
+  that teaches agents about it. Inside ctrl's terminals it works either way.
+- **Settings → Agents → ctrl command line** shows its status, and warns if `~/.local/bin` isn't in your PATH
+  or another `ctrl` comes first.
+- Agents can archive sessions but never delete them. What they archive shows the usual undo toast, so ⌘Z
+  undoes it.
+- Details: [CLI.md](CLI.md), every command: [CLI-REFERENCE.md](CLI-REFERENCE.md).

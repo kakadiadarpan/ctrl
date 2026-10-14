@@ -14,7 +14,7 @@ import type { AdapterInfo, AdapterStatus, ResourceItem, ResourceMeta } from "../
 import { runCli } from "./cli"
 
 /** Bump to drop cached details (their shape changed). */
-const CACHE_VERSION = 2
+const CACHE_VERSION = 3
 /** Never wake up more often than this, even if something is due sooner. */
 const MIN_TICK = 5 * SECOND
 /** Longest sleep: setTimeout misfires past ~24.8 days, and waking up hourly costs nothing. */
@@ -40,11 +40,30 @@ type Runner = {
 
 const nextFetch = (c: Cached) => c.meta.fetched + c.cache.maxAge
 
+/** An adapter that couldn't fetch for a request (`ctrl resources list/refresh`). */
+export type RequestError = {
+  adapter: string
+  state: AdapterStatus["state"]
+  message: string
+  /** Paused until then (rate limit, backoff, CLI not set up) */
+  retryAt?: number
+  /** The command that fixes it, when the CLI isn't installed or logged in */
+  hint?: string
+}
+
+export type RequestResult = {
+  /** Still being fetched when the wait ran out: the panel and the next list get them */
+  pending: string[]
+  errors: RequestError[]
+}
+
 /**
  * Live details for the resources on screen, from whichever adapter handles
  * each type. Only fetches while the panel is open and the window focused, only
  * what's due by the adapter's cache policy, in batches per adapter. Cached on
  * disk, so reopening the panel or restarting ctrl shows details instantly.
+ * The CLI asks through `request()`, which shares the cache, the pauses and
+ * in-flight fetches with the panel.
  */
 export class AdapterService {
   private db: DatabaseSync
@@ -55,6 +74,8 @@ export class AdapterService {
   private modes: Record<string, AdapterMode>
   private watched = new Map<string, Watched>()
   private watchedSessions = new Set<string>()
+  /** Fetches running now, by resource id, so the panel and CLI requests never fetch the same thing twice */
+  private inflight = new Map<string, Promise<void>>()
   private focused = false
   private timer?: ReturnType<typeof setTimeout>
 
@@ -191,6 +212,79 @@ export class AdapterService {
     else clearTimeout(this.timer)
   }
 
+  /**
+   * A one-shot fetch for the CLI, independent of the panel and window focus.
+   * By default only what's due by the same cache policy as the panel; `force`
+   * refetches everything asked for. Pauses (rate limits, backoff, CLI not set
+   * up) are respected either way. Returns once done or after `wait` ms; fetches
+   * still running keep going and land in the cache.
+   */
+  async request(items: ResourceItem[], opts: { force: boolean; wait: number }): Promise<RequestResult> {
+    const now = Date.now()
+    const pending = new Set<string>()
+    const errors = new Map<Runner, RequestError>()
+    const jobs: Promise<void>[] = []
+    const byRunner = new Map<Runner, Watched[]>()
+
+    for (const i of items) {
+      const r = this.runnerFor(i.type)
+      if (!r) continue
+      const running = this.inflight.get(i.id)
+      if (running) {
+        pending.add(i.id)
+        jobs.push(running.then(() => void pending.delete(i.id)))
+        continue
+      }
+      const w: Watched = { id: i.id, type: i.type, data: i.data, last: i.last }
+      if (!opts.force && this.dueAt(w, now) > now) continue
+      byRunner.set(r, [...(byRunner.get(r) ?? []), w])
+    }
+
+    for (const [r, list] of byRunner) {
+      if (now < r.pausedUntil) {
+        errors.set(r, this.errorOf(r))
+        continue
+      }
+      list.sort((a, b) => b.last - a.last)
+      for (const w of list) pending.add(w.id)
+      jobs.push(
+        (async () => {
+          // Batches one after the other, like the panel, so a big request doesn't burst an API.
+          for (let i = 0; i < list.length; i += r.adapter.live.batchSize) {
+            const batch = list.slice(i, i + r.adapter.live.batchSize)
+            try {
+              await this.fetch(r, batch)
+              r.failures = 0
+            } catch (err) {
+              this.fail(r, err)
+              errors.set(r, this.errorOf(r))
+              for (const w of list.slice(i)) pending.delete(w.id)
+              return
+            }
+            for (const w of batch) pending.delete(w.id)
+          }
+        })(),
+      )
+    }
+
+    let timer: ReturnType<typeof setTimeout> | undefined
+    await Promise.race([Promise.all(jobs), new Promise<void>((done) => (timer = setTimeout(done, opts.wait)))])
+    clearTimeout(timer)
+    return { pending: [...pending], errors: [...errors.values()] }
+  }
+
+  private errorOf(r: Runner): RequestError {
+    const { state, detail } = r.status
+    const setup = state === "no-cli" ? r.adapter.live.cli.install : state === "logged-out" ? r.adapter.live.cli.login : undefined
+    return {
+      adapter: r.adapter.id,
+      state,
+      message: detail ?? `${r.adapter.name} is paused`,
+      ...(r.pausedUntil > Date.now() ? { retryAt: r.pausedUntil } : {}),
+      ...(setup ? { hint: setup } : {}),
+    }
+  }
+
   /** Settings → Check again. */
   async retry(id: string) {
     const r = this.runners.find((r) => r.adapter.id === id)
@@ -228,7 +322,7 @@ export class AdapterService {
 
   private due(r: Runner, now: number) {
     return [...this.watched.values()]
-      .filter((w) => this.byType.get(w.type) === r && this.dueAt(w, now) <= now)
+      .filter((w) => this.byType.get(w.type) === r && !this.inflight.has(w.id) && this.dueAt(w, now) <= now)
       .sort((a, b) => b.last - a.last)
   }
 
@@ -267,7 +361,20 @@ export class AdapterService {
     this.schedule(MIN_TICK)
   }
 
-  private async fetch(r: Runner, batch: Watched[]) {
+  private fetch(r: Runner, batch: Watched[]) {
+    const job = this.fetchNow(r, batch)
+    const settled = job.then(
+      () => {},
+      () => {},
+    )
+    for (const w of batch) this.inflight.set(w.id, settled)
+    void settled.then(() => {
+      for (const w of batch) if (this.inflight.get(w.id) === settled) this.inflight.delete(w.id)
+    })
+    return job
+  }
+
+  private async fetchNow(r: Runner, batch: Watched[]) {
     const result = await r.adapter.live.fetch(batch, { run: runCli })
     const fetched = Date.now()
     const insert = this.db.prepare(

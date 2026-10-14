@@ -58,6 +58,7 @@ fx has no server and no plugin API, so ctrl works from its files and its termina
 ```text
 ~/.fx/sessions/<id>/ ── session.json (title, folder) ┐
                      ── events.jsonl (last line)     ├─► src/main/fx.ts ─► sidebar
+                     ── recovery.json (turn running) │
                      ── owner.live (pid)             ┘
 fx process in a pty ── OSC 7501 status reports ─────────► running / needs you / failed
 ```
@@ -68,7 +69,9 @@ fx process in a pty ── OSC 7501 status reports ─────────�
   appends once the file is closed. So sessions with a live fx process (`owner.live`) are also checked on a
   timer, one stat each (2s in main, 5s in the indexer), and re-read when their log grew.
 - **Status:** OSC 7501 (Program Status Protocol) reports from the processes ctrl runs give running, needs you
-  and failed. Otherwise the last line of `events.jsonl` says whether a turn is in progress. Read state is
+  and failed (fx 0.0.13 sends none). Otherwise `recovery.json` says a turn is in progress: fx writes a turn
+  to `events.jsonl` only once it ends, and keeps the one in flight in `recovery.json` until then (the poller
+  also notices that file appearing or going away). Read state is
   ctrl's own (`viewed` in `state.json`); turns that ended before ctrl first saw fx count as read.
 - **Processes:** `src/main/fx-terminals.ts` runs one `fx resume --id <id>` per open session, up to 12, and
   closes the least recently used idle ones past that. `owner.live` tells which session a process has, so
@@ -125,9 +128,21 @@ panel ◄── main: GROUP BY resource over the scope's mentions (~3ms)
   `/pull/1` and `/pull/1#x` are one PR), plus an icon and an offline title. Order matters: the first type that
   matches wins (PR before repo). URLs no type recognizes are ignored.
 - **Live details are optional:** an adapter with a `live` part fetches them through its service's CLI (`gh`,
-  `vercel`, `slack-cli`), so ctrl never handles tokens. It returns display-ready details plus a cache policy;
-  `src/main/adapters/service.ts` does the scheduling and caching for all of them. Linear and Notion have no
-  `live` part, so their links are shown as parsed.
+  `vercel`, `slack-cli`), so ctrl never handles tokens. It returns display-ready details (title, tone, chips)
+  plus the same details as plain `fields` for agents, and a cache policy; `src/main/adapters/service.ts` does
+  the scheduling and caching for all of them. Linear and Notion have no `live` part, so their links are shown
+  as parsed.
+- **Two ways in, one cache:** the panel watches the sessions it shows and fetches what's due while the window
+  is focused. `ctrl resources list` asks the service directly (`request()`), for the returned items only, with
+  the same cache policy and regardless of focus; `resources refresh` does the same with `force`. Both share
+  the cache, the pauses (rate limits, backoff, CLI not set up) and in-flight fetches, so nothing is fetched
+  twice and whatever one fetches, the other shows.
+
+```text
+panel (watch, focused) ─┐                      ┌─► due? → adapter.fetch (batched) ─► resource-meta.db
+ctrl resources list ────┼─► AdapterService ────┤
+ctrl resources refresh ─┘   (force)            └─► in flight? → wait on that fetch
+```
 - **Modes and status:** each adapter is Off (links hidden), Links only or Live details in Settings. A live
   adapter's `check()` verifies its CLI is installed and logged in without fetching, so Settings can show
   whether it works and offer a setup prompt built from `live.cli` (install, login, verify commands).
@@ -143,8 +158,28 @@ adapter = { id, name, types[], live? }
 - **Add an adapter:** a new file implementing `ResourceAdapter`, listed in `ADAPTERS`, and bump
   `RESOURCES_VERSION`. The indexer then re-extracts from the stored message text, locally and without
   refetching (~10ms for 1k messages).
+- **Session references** aren't links: `extractResources()` also matches `@session[Title](id)` and files it
+  under the `sessions` adapter as `ctrl://session/<id>`. The panel fills in title and state (archived,
+  running, deleted…) from the sidebar's session list instead of a live fetch, so renames and archiving show
+  up without reindexing, and a mention lives as long as the message that holds it.
 - **Same pipeline as search:** mentions are written in the same transaction as their message and deleted with it.
   Like search, only your prompts and the assistant's text are read, not tool output.
+
+## CLI
+
+`ctrl` drives the app from agents' shells over a unix socket in the state folder. Details, principles and how
+to add a command: [CLI.md](CLI.md).
+
+```text
+ctrl (dist/cli/cli.cjs) ──JSON──► ctrl.sock ──► cli-server.ts ──► cli-handlers.ts ──► CliHost (main.ts)
+```
+
+- **Same code paths as the UI:** handlers go through `CliHost`, which main implements with the functions IPC
+  uses (`newSession`, `archive`, `openSession`, `applySettings`, …).
+- **One registry** (`src/shared/cli/commands.ts`) drives argv parsing, `ctrl help`, the generated
+  [CLI-REFERENCE.md](CLI-REFERENCE.md), and handler lookup.
+- **Cheap for main:** reads come from memory; waits subscribe to state pushes; `session read` runs
+  `digest.mjs` in a child process.
 
 ## Notifications
 

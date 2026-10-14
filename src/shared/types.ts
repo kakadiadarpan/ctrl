@@ -31,6 +31,8 @@ export type Space = {
   modelEnabled?: boolean
   /** Extra instructions attached to every new opencode session in this space (fx has no way to take them) */
   instructions?: string
+  /** ctrl instruction (CTRL_INSTRUCTIONS) on this space's opencode sessions; unset = the app setting */
+  ctrlInstructions?: boolean
 }
 
 export type ModelOption = ModelRef & {
@@ -59,6 +61,7 @@ export type SpacePatch = {
   fxModel?: ModelRef | null
   modelEnabled?: boolean
   instructions?: string | null
+  ctrlInstructions?: boolean | null
 }
 
 /** Ordered by urgency: the first one that applies wins. */
@@ -70,6 +73,15 @@ export const STATUS_RANK: Record<SessionStatus, number> = {
   failed: 2,
   unread: 1,
   idle: 0,
+}
+
+/** A session an agent created through the `ctrl` CLI */
+export type AgentOrigin = {
+  /** e.g. "opencode", "fx", "claude-code" */
+  agent: string
+  /** Session the agent ran in, when the CLI could tell */
+  by: string | null
+  at: number
 }
 
 export type SessionItem = {
@@ -103,6 +115,8 @@ export type UiState = {
   resourcesScope: "session" | "space"
   /** The "install the read-session skill" toast was shown at launch once already */
   skillPrompted?: boolean
+  /** The "set up agents" toast (skills + ctrl command) was shown once already */
+  agentsPrompted?: boolean
   /** The welcome screen (pick a harness) was completed; Settings → About can show it again */
   onboarded?: boolean
 }
@@ -133,6 +147,8 @@ export type Settings = {
   defaultFxModel: ModelRef | null
   /** Off: ctrl passes no model and the harness's own default applies */
   defaultModelEnabled: boolean
+  /** Attach the ctrl instruction (CTRL_INSTRUCTIONS) to opencode sessions; spaces can override */
+  ctrlInstructions: boolean
   /** Rebound shortcuts; commands not listed use their defaults */
   shortcuts: ShortcutOverrides
   /** Per resource adapter id; adapters not listed use defaultAdapterMode */
@@ -186,6 +202,19 @@ export type OpencodeCheck =
  */
 export type SkillStatus = { state: "installed" | "outdated" | "external" | "missing"; path?: string }
 
+/**
+ * The `ctrl` CLI on PATH: a symlink at `link` (~/.local/bin/ctrl) to the launcher in the app.
+ * stale: links to another copy of ctrl (installing relinks it) · other: something else is at `link`, left alone ·
+ * shadowedBy: another `ctrl` comes first in PATH · notOnPath: `link`'s folder isn't in PATH
+ */
+export type CliStatus = {
+  state: "installed" | "missing" | "stale" | "other"
+  link: string
+  target: string
+  shadowedBy?: string
+  notOnPath?: boolean
+}
+
 /** Whether fx is installed. Only needed for fx sessions; ctrl works without it. */
 export type FxCheck = { state: "checking" } | { state: "ok"; version: string; bin: string } | { state: "missing" }
 
@@ -213,6 +242,9 @@ export type AppState = {
   opencodeServer: OpencodeServer
   fx: FxCheck
   skill: SkillStatus
+  /** The `ctrl` CLI: its PATH symlink and the ctrl skill that teaches agents about it */
+  cli: CliStatus
+  cliSkill: SkillStatus
   update: UpdateStatus
   ui: UiState
   settings: Settings
@@ -221,6 +253,8 @@ export type AppState = {
   spaces: Space[]
   assignments: Record<string, string>
   archived: Record<string, number>
+  /** sessionID → the agent that created it */
+  createdByAgent: Record<string, AgentOrigin>
   sessions: SessionItem[]
   currentSessionID: string | null
   bridgeConnected: boolean
@@ -286,6 +320,11 @@ export type ResourceMeta = {
   chips?: { text: string; tone: Tone; title?: string }[]
   /** Extra tooltip lines */
   details?: string[]
+  /**
+   * The same details as plain values, for agents (`ctrl resources list`): e.g. a PR's
+   * {state:"open", draft:false, ci:"pending", review:"approved", author:"luc"}. Keys per type in docs/CLI.md.
+   */
+  fields?: Record<string, string | number | boolean | null>
   /** Not found, or not visible to the CLI's account */
   missing?: boolean
   fetched: number
@@ -401,6 +440,10 @@ export type CtrlApi = {
   createSpace(name: string): Promise<string>
   renameSpace(id: string, name: string): Promise<void>
   onSpaceSettings(cb: (spaceID: string) => void): () => void
+  /** The CLI opens (true) or closes (false) the settings page */
+  onUiSettings(cb: (open: boolean) => void): () => void
+  /** The CLI opens the search palette with this query */
+  onUiPalette(cb: (query: string) => void): () => void
   updateSpace(id: string, patch: SpacePatch): Promise<void>
   pickSpaceFolder(id: string): Promise<void>
   listModels(harness: Harness, directory?: string): Promise<ModelChoices>
@@ -438,6 +481,9 @@ export type CtrlApi = {
   restartOpencode(): Promise<void>
   installSkill(): Promise<void>
   uninstallSkill(): Promise<void>
+  /** Puts `ctrl` on PATH (~/.local/bin) and installs the ctrl skill */
+  installCli(): Promise<void>
+  uninstallCli(): Promise<void>
   /** A session was referenced: suggests installing the skill if it's missing (once per launch) */
   sessionReferenced(): Promise<void>
   checkForUpdates(): Promise<void>

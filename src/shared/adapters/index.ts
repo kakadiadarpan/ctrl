@@ -2,6 +2,7 @@ import type { AdapterMode, ParsedResource, ResourceAdapter, ResourceType } from 
 import { github } from "./github"
 import { linear } from "./linear"
 import { notion } from "./notion"
+import { sessionRefUrl, sessions } from "./sessions"
 import { slack } from "./slack"
 import { vercel } from "./vercel"
 
@@ -16,9 +17,9 @@ export type { ParsedResource, ResourceAdapter, ResourceType } from "./adapter"
  * Adding or changing link types: bump RESOURCES_VERSION, which re-extracts
  * resources from already indexed messages (local, nothing is refetched).
  */
-export const ADAPTERS: ResourceAdapter[] = [github, linear, notion, slack, vercel]
+export const ADAPTERS: ResourceAdapter[] = [sessions, github, linear, notion, slack, vercel]
 
-export const RESOURCES_VERSION = 2
+export const RESOURCES_VERSION = 3
 
 /** Every link type, in priority order: the first type that parses a URL wins. */
 export const RESOURCE_TYPES: ResourceType[] = ADAPTERS.flatMap((a) => a.types)
@@ -43,7 +44,7 @@ export function parseResourceUrl(raw: string): ParsedResource | null {
   } catch {
     return null
   }
-  if (url.protocol !== "https:" && url.protocol !== "http:") return null
+  if (url.protocol !== "https:" && url.protocol !== "http:" && url.protocol !== "ctrl:") return null
   for (const type of RESOURCE_TYPES) {
     const r = type.parse(url)
     if (r) return { type: type.id, key: `${type.id}:${r.identity}`, url: r.url, data: r.data }
@@ -54,16 +55,23 @@ export function parseResourceUrl(raw: string): ParsedResource | null {
 // Stops at whitespace, quotes, brackets and markdown/backtick delimiters.
 const URL_RE = /\bhttps?:\/\/[^\s<>"'`()[\]{}|\\^]+/gi
 
+// `@session[Title](id)` / `session[Title](id)`, see sessionMention() in src/renderer/ReferenceDrop.tsx.
+const SESSION_RE = /@?session\[([^\]\n]*)\]\((ses_[A-Za-z0-9]+|fx:[A-Za-z0-9_-]+)\)/g
+
 /** Every recognized resource in a text, once each (first occurrence wins). */
 export function extractResources(text: string): ParsedResource[] {
   const out = new Map<string, ParsedResource>()
-  for (const [match] of text.matchAll(URL_RE)) {
-    const raw = match.replace(/[.,;:!?*_~]+$/, "")
-    const r = parseResourceUrl(raw)
-    if (!r) continue
+  const add = (r: ParsedResource | null) => {
+    if (!r) return
     const seen = out.get(r.key)
     if (seen) Object.assign(seen.data, r.data)
     else out.set(r.key, r)
   }
+  for (const [, title, id] of text.matchAll(SESSION_RE)) {
+    const url = new URL(sessionRefUrl(id))
+    if (title.trim()) url.searchParams.set("title", title.trim())
+    add(parseResourceUrl(url.href))
+  }
+  for (const [match] of text.matchAll(URL_RE)) add(parseResourceUrl(match.replace(/[.,;:!?*_~]+$/, "")))
   return [...out.values()]
 }
