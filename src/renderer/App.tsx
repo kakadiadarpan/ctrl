@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { shortcutLabel } from "../shared/shortcuts"
 import { DEFAULT_SOUND_CHOICES, FONT_SIZE, type AppState } from "../shared/types"
+import { ArchivedBanner } from "./ArchivedBanner"
 import { jumpTargets, useJumpHints } from "./jump"
 import { Onboarding } from "./Onboarding"
 import { Palette } from "./Palette"
@@ -61,6 +62,8 @@ export function App() {
   // Either harness is enough: without opencode, ctrl runs fx sessions only (and the other way round).
   const ready = state.opencode.state === "ok" || state.fx.state === "ok"
   const activeTerm = state.terms.find((t) => t.id === state.activeTermID)
+  // Its terminal is read-only (TerminalStack) until it's unarchived.
+  const archivedOnScreen = activeTerm?.sessionID && state.archived[activeTerm.sessionID] ? activeTerm.sessionID : null
   const checked = state.opencode.state !== "checking" && state.fx.state !== "checking"
   // First launch, or nothing usable installed. Drawn over the terminals, which keep running underneath.
   const onboarding = checked && (!state.ui.onboarded || !ready)
@@ -209,8 +212,17 @@ export function App() {
               dark={state.dark}
               fontSize={state.settings.fontSize}
               opencodeOpensLinks={state.opencode.state === "ok" && state.opencode.opensLinks}
+              archived={state.archived}
             />
-            {activeTerm && (
+            {archivedOnScreen && !onboarding && (
+              <ArchivedBanner
+                onUnarchive={() => {
+                  void window.ctrl.setArchived(archivedOnScreen, false)
+                  terminal.current?.focus()
+                }}
+              />
+            )}
+            {activeTerm && !archivedOnScreen && (
               <ReferenceDrop
                 sessions={state.sessions}
                 currentSessionID={state.currentSessionID}

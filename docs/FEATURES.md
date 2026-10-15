@@ -58,6 +58,9 @@ where it lives.
 - Archive / unarchive: hover button, right-click, ⌘W, or "Archive all sessions" on a space. Stored in
   ctrl's `state.json`, opencode is untouched (`src/main/store.ts`) apart from archiving marking the session
   read. Archived rows never show the unread / failed dot
+- Opening an archived session shows it read-only: a bar over the prompt says it's archived with an **Unarchive**
+  button, and its terminal only scrolls (keys, clicks, pastes and drops are dropped) until it's unarchived
+  (`src/renderer/ArchivedBanner.tsx`, `locked` in `src/renderer/TerminalStack.tsx`)
 - **Recents**: every non-archived session, newest first, 10 at a time with Show more, foldable (state saved)
 - **Created by an agent**: sessions an agent makes with `ctrl session new` show a small bot icon, and the
   tooltip names the agent and the session it ran in. Stored in `state.json` (`createdByAgent`), returned by the CLI
