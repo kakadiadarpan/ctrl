@@ -43,7 +43,8 @@ function translateKey(e: KeyboardEvent): string | null {
 }
 
 // The TUIs own plain clicks (they track the mouse), so links open on ⌘-click like
-// iTerm and VS Code.
+// iTerm and VS Code. Newer opencode opens clicked links itself, and terminals don't
+// report ⌘ to the app, so there a ⌘-click would open the link twice: leave it to the TUI.
 const openLink = (event: MouseEvent, uri: string) => {
   if (!event.metaKey) return
   event.preventDefault()
@@ -76,14 +77,21 @@ export type TerminalHandle = {
   paste(text: string): void
 }
 
-type Props = { terms: TermInfo[]; activeID: string | null; dark: boolean; fontSize: number }
+type Props = {
+  terms: TermInfo[]
+  activeID: string | null
+  dark: boolean
+  fontSize: number
+  /** opencode's TUI opens clicked links itself */
+  opencodeOpensLinks: boolean
+}
 
 /**
  * One xterm per terminal (the opencode TUI and each fx process), stacked; only the
  * active one is visible. They all keep the same size, so switching never reflows.
  */
 export const TerminalStack = forwardRef<TerminalHandle, Props>(function TerminalStack(
-  { terms, activeID, dark, fontSize },
+  { terms, activeID, dark, fontSize, opencodeOpensLinks },
   ref,
 ) {
   const activeRef = useRef(activeID)
@@ -118,6 +126,7 @@ export const TerminalStack = forwardRef<TerminalHandle, Props>(function Terminal
           active={t.id === activeID}
           dark={dark}
           fontSize={fontSize}
+          opensLinks={t.harness === "opencode" && opencodeOpensLinks}
         />
       ))}
       {!active && <EmptyState />}
@@ -131,12 +140,15 @@ const TermPane = memo(function TermPane({
   active,
   dark,
   fontSize,
+  opensLinks,
 }: {
   id: string
   harness: Harness
   active: boolean
   dark: boolean
   fontSize: number
+  /** The TUI opens clicked links itself, so ctrl leaves them alone */
+  opensLinks: boolean
 }) {
   const el = useRef<HTMLDivElement>(null)
   const wrap = useRef<HTMLDivElement>(null)
@@ -145,6 +157,8 @@ const TermPane = memo(function TermPane({
   const initial = useRef({ dark, fontSize })
   const fallback = useRef(palette(harness, dark))
   fallback.current = palette(harness, dark)
+  const tuiLinks = useRef(opensLinks)
+  tuiLinks.current = opensLinks
 
   useEffect(() => {
     const t = new Terminal({
@@ -158,7 +172,7 @@ const TermPane = memo(function TermPane({
       scrollback: harness === "fx" ? 10_000 : 0,
       theme: fallback.current,
       // OSC 8 hyperlinks (e.g. markdown links the TUI renders)
-      linkHandler: { activate: openLink, allowNonHttpProtocols: true },
+      linkHandler: { activate: (e, uri) => tuiLinks.current || openLink(e, uri), allowNonHttpProtocols: true },
     })
     termRef.current = t
     const fit = new FitAddon()
@@ -170,11 +184,11 @@ const TermPane = memo(function TermPane({
     t.loadAddon(
       new WebLinksAddon(
         (event, uri) => {
-          if (!event.metaKey) return
+          if (!event.metaKey || tuiLinks.current) return
           event.preventDefault()
           void resolveLink(uri).then(window.ctrl.openExternal) // wrapped-links (was: openLink)
         },
-        { hover: (_e, uri, range) => onLinkHover(t, uri, range), leave: onLinkLeave }, // wrapped-links
+        { hover: (_e, uri, range) => tuiLinks.current || onLinkHover(t, uri, range), leave: onLinkLeave }, // wrapped-links
       ),
     )
     t.attachCustomKeyEventHandler((e) => {

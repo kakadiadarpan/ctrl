@@ -110,7 +110,8 @@ where it lives.
 
 - Key fixes: ⇧↩ new line, ⌘← / ⌘→ line start / end, ⌘⌫ delete to line start (`translateKey()` in
   `src/renderer/TerminalStack.tsx`)
-- ⌘-click links to open them in the browser, including URLs wrapped across lines (`src/renderer/wrapped-links.ts`)
+- ⌘-click links to open them in the browser, including URLs wrapped across lines (`src/renderer/wrapped-links.ts`).
+  opencode 2.0.26+ opens clicked links itself (plain or ⌘-click), so ctrl leaves its links to the TUI
 - Drag a session onto the terminal to paste `@session[Title](id)` (`session[…]` without the `@` in fx, which
   reads `@` as a file); the `read-session` skill lets the agent read it, opencode or fx, from either harness,
   with or without node installed (`src/renderer/ReferenceDrop.tsx`, `skills/read-session`). An fx turn still
