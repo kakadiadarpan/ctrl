@@ -71,6 +71,11 @@ window.ctrl.onPtyData((termID, data, end) => {
 
 window.ctrl.onPtyReset((termID) => panes.get(termID)?.term.reset())
 
+// SGR mouse reports: wheel buttons are 64-67 (plus modifier bits), 32 marks motion.
+const MOUSE_REPORT = /\x1b\[<(\d+);\d+;\d+[Mm]/g
+/** A locked (archived) terminal still scrolls, but takes no keys, clicks or pastes. */
+const onlyWheel = (data: string) => data.replace(MOUSE_REPORT, (seq, b) => ((Number(b) & 96) === 64 ? "" : seq)) === ""
+
 export type TerminalHandle = {
   focus(): void
   /** Bracketed paste into the terminal on screen, so it's inserted as text (no submit, no @file search) */
@@ -84,6 +89,8 @@ type Props = {
   fontSize: number
   /** opencode's TUI opens clicked links itself */
   opencodeOpensLinks: boolean
+  /** Terminals showing one of these sessions are read-only until it's unarchived */
+  archived: Record<string, number>
 }
 
 /**
@@ -91,11 +98,14 @@ type Props = {
  * active one is visible. They all keep the same size, so switching never reflows.
  */
 export const TerminalStack = forwardRef<TerminalHandle, Props>(function TerminalStack(
-  { terms, activeID, dark, fontSize, opencodeOpensLinks },
+  { terms, activeID, dark, fontSize, opencodeOpensLinks, archived },
   ref,
 ) {
   const activeRef = useRef(activeID)
   activeRef.current = activeID
+  const isLocked = (t: TermInfo) => !!(t.sessionID && archived[t.sessionID])
+  const lockedIDs = useRef(new Set<string>())
+  lockedIDs.current = new Set(terms.filter(isLocked).map((t) => t.id))
 
   useImperativeHandle(
     ref,
@@ -103,7 +113,7 @@ export const TerminalStack = forwardRef<TerminalHandle, Props>(function Terminal
       focus: () => (activeRef.current ? panes.get(activeRef.current)?.term.focus() : undefined),
       paste: (text) => {
         const id = activeRef.current
-        if (!id) return
+        if (!id || lockedIDs.current.has(id)) return
         window.ctrl.ptyWrite(id, `\x1b[200~${text}\x1b[201~`)
         panes.get(id)?.term.focus()
       },
@@ -127,6 +137,7 @@ export const TerminalStack = forwardRef<TerminalHandle, Props>(function Terminal
           dark={dark}
           fontSize={fontSize}
           opensLinks={t.harness === "opencode" && opencodeOpensLinks}
+          locked={isLocked(t)}
         />
       ))}
       {!active && <EmptyState />}
@@ -141,6 +152,7 @@ const TermPane = memo(function TermPane({
   dark,
   fontSize,
   opensLinks,
+  locked,
 }: {
   id: string
   harness: Harness
@@ -149,6 +161,8 @@ const TermPane = memo(function TermPane({
   fontSize: number
   /** The TUI opens clicked links itself, so ctrl leaves them alone */
   opensLinks: boolean
+  /** Archived session on screen: scrolling only, other input is dropped */
+  locked: boolean
 }) {
   const el = useRef<HTMLDivElement>(null)
   const wrap = useRef<HTMLDivElement>(null)
@@ -159,6 +173,8 @@ const TermPane = memo(function TermPane({
   fallback.current = palette(harness, dark)
   const tuiLinks = useRef(opensLinks)
   tuiLinks.current = opensLinks
+  const lockedRef = useRef(locked)
+  lockedRef.current = locked
 
   useEffect(() => {
     const t = new Terminal({
@@ -195,7 +211,7 @@ const TermPane = memo(function TermPane({
       const seq = translateKey(e)
       if (!seq) return true
       // Swallow keydown/keypress/keyup so xterm doesn't also send its own encoding.
-      if (e.type === "keydown") window.ctrl.ptyWrite(id, seq)
+      if (e.type === "keydown" && !lockedRef.current) window.ctrl.ptyWrite(id, seq)
       e.preventDefault()
       return false
     })
@@ -246,7 +262,9 @@ const TermPane = memo(function TermPane({
     ;(window as unknown as { __terms: Map<string, Pane> }).__terms = panes
     if (harness === "opencode") (window as unknown as { __term: Terminal }).__term = t
 
-    const input = t.onData((d) => window.ctrl.ptyWrite(id, d))
+    const input = t.onData((d) => {
+      if (!lockedRef.current || onlyWheel(d)) window.ctrl.ptyWrite(id, d)
+    })
     const resize = t.onResize(({ cols, rows }) => window.ctrl.ptyResize(cols, rows))
     window.ctrl.ptyResize(t.cols, t.rows)
 
