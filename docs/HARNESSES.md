@@ -61,7 +61,7 @@ so ctrl keeps a process per open session and reads its files and terminal output
 | Reference a session (drag onto the terminal) | ✅ | ✅ | Works across harnesses, with the `read-session` skill |
 | Drop files from Finder | ✅ | ✅ | |
 | Drag a resource onto the terminal | ✅ | ✅ | Pastes its link, or its session mention |
-| ⌘-click links, wrapped URLs | ✅ | ✅ | |
+| ⌘-click links, wrapped URLs | ✅ | ✅ | opencode 2.0.26+ opens clicked links itself (a plain click works too), ctrl only handles them for older versions |
 | Theme for the terminal | ✅ | ⚠️ | fx follows ctrl's light/dark; pick an fx theme in `~/.fx/settings.json` |
 | MCP server status and Fix | ✅ | ❌ | opencode's MCP servers only |
 | `/new`, `/resume` inside the terminal followed by the sidebar | ✅ | ✅ | |

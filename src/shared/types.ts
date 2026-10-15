@@ -191,7 +191,13 @@ export const OPENCODE_UPGRADE = "opencode upgrade"
 /** Whether a usable opencode CLI is installed; ctrl only starts the TUI once it's "ok". */
 export type OpencodeCheck =
   | { state: "checking" }
-  | { state: "ok"; version: string; bin: string }
+  | {
+      state: "ok"
+      version: string
+      bin: string
+      /** The TUI opens clicked links itself (incl. wrapped ones), so ctrl must not open them too */
+      opensLinks: boolean
+    }
   | { state: "missing"; detail?: string }
   | { state: "outdated"; version: string; min: string; bin: string }
 

@@ -208,6 +208,7 @@ export function App() {
               activeID={state.activeTermID}
               dark={state.dark}
               fontSize={state.settings.fontSize}
+              opencodeOpensLinks={state.opencode.state === "ok" && state.opencode.opensLinks}
             />
             {activeTerm && (
               <ReferenceDrop
