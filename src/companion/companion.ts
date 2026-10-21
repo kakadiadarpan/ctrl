@@ -8,7 +8,7 @@
 // Everything lives here and in src/renderer/companion: main only creates it, turns it on and off, and
 // tells it when sessions or resources changed. While off, nothing runs (no process, no window).
 
-import { app, BrowserWindow, ipcMain, screen, shell, systemPreferences } from "electron"
+import { app, BrowserWindow, ipcMain, nativeTheme, screen, shell, systemPreferences } from "electron"
 import { spawn, type ChildProcess } from "node:child_process"
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -16,13 +16,15 @@ import { createInterface } from "node:readline"
 import type { SessionItem } from "../shared/types"
 import type { SessionMention } from "../main/search-db"
 import { lookupFor, relatedName } from "./match"
-import type { CompanionSession, CompanionView, ProbeMessage } from "./types"
+import type { CompanionGroup, CompanionSession, CompanionView, ProbeMessage } from "./types"
 
 export type CompanionHost = {
   /** dist/ folder (dev) */
   root: string
   sessions(): SessionItem[]
   isArchived(id: string): boolean
+  /** The space a session is in, if any */
+  spaceOf(id: string): { id: string; name: string } | undefined
   sessionsMentioning(ids: string[], prefixes: string[]): { exact: SessionMention[]; related: SessionMention[] }
   /** Brings ctrl's main window forward on that session */
   open(sessionID: string): void
@@ -31,8 +33,11 @@ export type CompanionHost = {
 }
 
 const WIDTH = 300
-const MAX_ROWS = 8
+const MAX_ROWS = 10
 const MARGIN = 18
+// Same as the sidebar (--sidebar-bg in styles.css): the window paints before the page does.
+const LIGHT_BG = "#f4f4f3"
+const DARK_BG = "#1f1f1e"
 
 type Saved = { x: number; y: number }
 
@@ -132,7 +137,7 @@ export class Companion {
 
   private compute(): CompanionView {
     const ctx = this.context
-    if (!ctx) return { trusted: this.trusted, context: null, sessions: [] }
+    if (!ctx) return { trusted: this.trusted, context: null, groups: [] }
     const lookup = lookupFor(ctx.urls)
     const first = lookup.exact[0]
     const mentions = this.host.sessionsMentioning(lookup.exact, lookup.related)
@@ -144,6 +149,7 @@ export class Companion {
       rows.set(s.id, {
         id: s.id,
         title: s.title,
+        harness: s.harness,
         status: s.status,
         archived: this.host.isArchived(s.id),
         last: m.last,
@@ -154,11 +160,24 @@ export class Companion {
     const sessions = [...rows.values()]
       .sort((a, b) => Number(a.archived) - Number(b.archived) || Number(b.exact) - Number(a.exact) || b.last - a.last)
       .slice(0, MAX_ROWS)
+    // Groups in order of their best session; Recents and Archived after the spaces, like the sidebar.
+    const groups = new Map<string, CompanionGroup>()
+    for (const s of sessions) {
+      const space = s.archived ? undefined : this.host.spaceOf(s.id)
+      const group: Omit<CompanionGroup, "sessions"> = s.archived
+        ? { id: "archived", kind: "archived", name: "Archived" }
+        : space
+          ? { id: space.id, kind: "space", name: space.name }
+          : { id: "recents", kind: "recents", name: "Recents" }
+      if (!groups.has(group.id)) groups.set(group.id, { ...group, sessions: [] })
+      groups.get(group.id)!.sessions.push(s)
+    }
+    const rank = { space: 0, recents: 1, archived: 2 }
     const resource = first && lookup.names.get(first)
     return {
       trusted: this.trusted,
       context: { app: ctx.app, label: ctx.label || resource || ctx.title || undefined, resource },
-      sessions,
+      groups: [...groups.values()].sort((a, b) => rank[a.kind] - rank[b.kind]),
     }
   }
 
@@ -187,7 +206,7 @@ export class Companion {
       y: saved?.y ?? area.y + area.height - 96 - MARGIN,
       show: false,
       frame: false,
-      transparent: true,
+      backgroundColor: nativeTheme.shouldUseDarkColors ? DARK_BG : LIGHT_BG,
       resizable: false,
       minimizable: false,
       maximizable: false,
@@ -195,8 +214,6 @@ export class Companion {
       skipTaskbar: true,
       hasShadow: true,
       alwaysOnTop: true,
-      vibrancy: "popover",
-      visualEffectState: "active",
       webPreferences: { preload: join(this.host.root, "dist", "companion-preload.cjs"), sandbox: false },
     })
     this.win = win
@@ -205,6 +222,9 @@ export class Companion {
     win.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
     win.webContents.on("will-navigate", (e) => e.preventDefault())
     win.on("moved", () => this.savePosition())
+    const theme = () => win.setBackgroundColor(nativeTheme.shouldUseDarkColors ? DARK_BG : LIGHT_BG)
+    nativeTheme.on("updated", theme)
+    win.on("closed", () => nativeTheme.off("updated", theme))
     win.webContents.once("did-finish-load", () => {
       this.lastSent = ""
       this.render()

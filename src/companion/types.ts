@@ -1,4 +1,4 @@
-import type { SessionStatus } from "../shared/types"
+import type { Harness, SessionStatus } from "../shared/types"
 
 /** What the native helper (native/context.swift) prints, one JSON object per line. */
 export type ProbeMessage =
@@ -8,6 +8,7 @@ export type ProbeMessage =
 export type CompanionSession = {
   id: string
   title: string
+  harness: Harness
   status: SessionStatus
   archived: boolean
   /** Last time it mentioned the matched resource */
@@ -29,6 +30,15 @@ export type CompanionView = {
     /** The resource it recognized, e.g. "vercel/front#123"; none when nothing on screen is a link ctrl knows */
     resource?: string
   } | null
+  /** Matching sessions grouped like the sidebar: by space, then Recents (no space), then Archived */
+  groups: CompanionGroup[]
+}
+
+export type CompanionGroup = {
+  /** Space id, "recents" or "archived" */
+  id: string
+  kind: "space" | "recents" | "archived"
+  name: string
   sessions: CompanionSession[]
 }
 

@@ -112,10 +112,11 @@ where it lives.
 ## Companion (experimental)
 
 - Always-on-top window, off by default (Settings → Companion, or `ctrl settings set companion true`), that
-  lists the sessions that mentioned what's on screen, newest first: the PR, issue or page in the browser tab
+  lists the sessions that mentioned what's on screen, grouped like the sidebar (by space, then Recents, then
+  Archived) with the same rows (fx tag, status, age) and colors, newest first: the PR, issue or page in the browser tab
   (Chrome, Arc, Brave, Edge, Dia, Vivaldi, Safari), the Slack thread (side panel, or the one under the pointer
   on the Threads page) or channel, the Notion page, the Linear issue. A Slack channel also lists sessions that
-  mentioned threads in it ("via Thread · …"). Click a row to open it in ctrl. Draggable, sized to its content,
+  mentioned threads in it (marked with #). Click a row to open it in ctrl. Draggable, sized to its content,
   remembers its position, stays on every Space; clicking it doesn't take focus from the app you're in. ×
   turns it off (`src/companion/`, `src/renderer/companion/`)
 - Reading the screen goes through a small native helper, `ctrl-context`, ported from Orchid: AppleScript for

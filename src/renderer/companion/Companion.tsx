@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
-import type { CompanionApi, CompanionView } from "../../companion/types"
+import type { CompanionApi, CompanionGroup, CompanionSession, CompanionView } from "../../companion/types"
 import { age } from "../format"
 import { Icon } from "../icons"
 import { StatusIcon } from "../StatusIcon"
@@ -37,34 +37,21 @@ export function Companion() {
   const ctx = view?.context
   return (
     <div className="companion" ref={root}>
-      <div className="header">
-        <span className="app">{ctx?.app ?? "ctrl"}</span>
-        {ctx?.label && <span className="label">{ctx.label}</span>}
-        <button className="close" title="Turn off the companion (Settings → Companion)" onClick={() => window.companion.close()}>
+      <div className="companion-header">
+        <span className="companion-app">{ctx?.app ?? "ctrl"}</span>
+        {ctx?.label && <span className="companion-label">{ctx.label}</span>}
+        <button className="icon-btn companion-close" title="Turn off the companion (Settings → Companion)" onClick={() => window.companion.close()}>
           <Icon name="close" />
         </button>
       </div>
       {view && !view.trusted && (
-        <button className="access" onClick={() => window.companion.requestAccess()}>
+        <button className="companion-access" onClick={() => window.companion.requestAccess()}>
           <Icon name="alert" />
           <span>Allow Accessibility for ctrl to read Slack, Notion and Linear</span>
         </button>
       )}
-      {view?.sessions.length ? (
-        <div className="list">
-          {view.sessions.map((s) => (
-            <button key={s.id} className={`session ${s.archived ? "archived" : ""}`} onClick={() => window.companion.open(s.id)}>
-              <span className="status">
-                <StatusIcon status={s.status} />
-              </span>
-              <span className="text">
-                <span className="title">{s.title || "Untitled"}</span>
-                {!s.exact && <span className="via">via {s.via}</span>}
-              </span>
-              <span className="age">{s.archived ? "archived" : age(s.last)}</span>
-            </button>
-          ))}
-        </div>
+      {view?.groups.length ? (
+        view.groups.map((g) => <Group key={g.id} group={g} />)
       ) : (
         <div className="empty">
           {!ctx
@@ -75,5 +62,38 @@ export function Companion() {
         </div>
       )}
     </div>
+  )
+}
+
+function Group({ group }: { group: CompanionGroup }) {
+  return (
+    <div className={`companion-group ${group.kind}`}>
+      <div className="row space-header companion-space">
+        <Icon name={group.kind === "space" ? "folder-open" : group.kind === "archived" ? "archive" : "compose"} />
+        <span className="label">{group.name}</span>
+      </div>
+      {group.sessions.map((s) => (
+        <Row key={s.id} session={s} />
+      ))}
+    </div>
+  )
+}
+
+function Row({ session: s }: { session: CompanionSession }) {
+  return (
+    <button
+      className="row session companion-session"
+      onClick={() => window.companion.open(s.id)}
+      title={[s.title, s.exact ? undefined : `Mentioned ${s.via} in the same channel`].filter(Boolean).join("\n")}
+    >
+      {s.harness === "fx" && <span className="harness-tag">fx</span>}
+      <span className="label">{s.title || "Untitled"}</span>
+      {!s.exact && (
+        <span className="companion-via">
+          <Icon name="hash" />
+        </span>
+      )}
+      {s.status === "idle" || s.archived ? <span className="meta">{age(s.last)}</span> : <StatusIcon status={s.status} />}
+    </button>
   )
 }

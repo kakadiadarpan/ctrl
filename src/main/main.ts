@@ -310,6 +310,10 @@ const companion = new Companion({
   root,
   sessions: () => sessions,
   isArchived: (id) => !!store.data.archived[id],
+  spaceOf: (id) => {
+    const spaceID = store.data.assignments[id]
+    return spaceID ? store.data.spaces.find((s) => s.id === spaceID) : undefined
+  },
   sessionsMentioning: (ids, prefixes) => search.sessionsMentioning(ids, prefixes),
   open: (id) => {
     if (win && !win.isDestroyed()) {
