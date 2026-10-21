@@ -109,6 +109,19 @@ where it lives.
     the reference. A session never lists itself.
     `ctrl resources list` returns them as type `session` with the referenced session (or `null` once deleted)
 
+## Companion (experimental)
+
+- Always-on-top window, off by default (Settings → Companion, or `ctrl settings set companion true`), that
+  lists the sessions that mentioned what's on screen, newest first: the PR, issue or page in the browser tab
+  (Chrome, Arc, Brave, Edge, Dia, Vivaldi, Safari), the Slack thread (side panel, or the one under the pointer
+  on the Threads page) or channel, the Notion page, the Linear issue. A Slack channel also lists sessions that
+  mentioned threads in it ("via Thread · …"). Click a row to open it in ctrl. Draggable, sized to its content,
+  remembers its position, stays on every Space; clicking it doesn't take focus from the app you're in. ×
+  turns it off (`src/companion/`, `src/renderer/companion/`)
+- Reading the screen goes through a small native helper, `ctrl-context`, ported from Orchid: AppleScript for
+  browser tabs, the Accessibility tree for Slack, Notion and Linear. Without Accessibility access the window
+  offers a button to grant it (`src/companion/native/context.swift`)
+
 ## Terminal
 
 - Key fixes: ⇧↩ new line, ⌘← / ⌘→ line start / end, ⌘⌫ delete to line start (`translateKey()` in

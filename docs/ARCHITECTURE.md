@@ -165,6 +165,38 @@ adapter = { id, name, types[], live? }
 - **Same pipeline as search:** mentions are written in the same transaction as their message and deleted with it.
   Like search, only your prompts and the assistant's text are read, not tool output.
 
+## Companion
+
+Settings → Companion opens a small always-on-top window listing the sessions that mentioned what's on screen.
+It's a module of its own: `src/companion/` (main side, helper, preload) and `src/renderer/companion/` (its page).
+Main only creates it, turns it on and off, and calls `changed()` when sessions or resources change.
+
+```text
+ctrl-context (Swift) ──JSON line on change──► Companion (main) ──view──► companion window
+ ├ browser: AppleScript, active tab URL         │ URLs → keys (shared adapters)
+ ├ Slack: AX tree + hover (ported from Orchid)  │ mentions_resource lookup (exact + prefix)
+ └ Notion, Linear: AX web area URL              └ sessions list → rows
+```
+
+- **Off costs nothing:** no helper process, no window. On, the helper scans the frontmost app on activation
+  and every second, on its own main thread, and prints only when what it sees changed. Main parses a short
+  JSON line and runs two indexed queries (bounded to 200 mentions); refreshes from session/resource changes
+  are coalesced to one per 300ms, and the view is sent only when it changed.
+- **Slack** (the tricky one): the channel id comes from Slack's own client URL in the AX tree
+  (`app.slack.com/client/<team>/<channel>`); an open thread panel is the first permalink after
+  `Thread in channel …`; on the Threads page, the card under the pointer gives `threads_view_<channel>-<ts>`.
+  A channel also matches the threads in it (`slack-thread:<channel>/` prefix). Keys don't depend on the
+  workspace, so a guessed workspace in a rebuilt permalink doesn't matter.
+- **Permissions:** the helper inherits ctrl's (TCC follows the responsible app): Accessibility for Slack,
+  Notion and Linear, Automation per browser (`NSAppleEventsUsageDescription`). Electron apps only expose
+  their tree after `AXManualAccessibility`, which the helper sets on them, never on ctrl.
+- **Own window:** an `NSPanel` (`type: "panel"`) at floating level on every Space. Clicking it doesn't
+  activate ctrl, so the app you were in stays frontmost and its context stays on screen. When ctrl itself is
+  frontmost, the helper keeps the last context.
+- The helper is built by `scripts/build.mjs` (universal, `swiftc`, only when its source changed) into
+  `dist/companion/` and shipped in `Contents/Resources/companion`. `ctrl-context --once --debug` prints what
+  it sees in the frontmost app after 3s.
+
 ## CLI
 
 `ctrl` drives the app from agents' shells over a unix socket in the state folder. Details, principles and how

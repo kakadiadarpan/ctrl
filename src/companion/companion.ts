@@ -1,0 +1,253 @@
+// The companion: a small always-on-top window listing the sessions that mentioned what's on screen
+// (the PR in your browser, the Slack thread you're reading). Off by default (Settings → Companion).
+//
+//   ctrl-context (Swift, native/context.swift) ──JSON lines──► Companion ──view──► companion window
+//        └ frontmost app: browser tab URL, Slack/Notion/Linear via Accessibility
+//   Companion: URLs → resource keys (shared adapters) → search.db mentions → sessions
+//
+// Everything lives here and in src/renderer/companion: main only creates it, turns it on and off, and
+// tells it when sessions or resources changed. While off, nothing runs (no process, no window).
+
+import { app, BrowserWindow, ipcMain, screen, shell, systemPreferences } from "electron"
+import { spawn, type ChildProcess } from "node:child_process"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
+import { createInterface } from "node:readline"
+import type { SessionItem } from "../shared/types"
+import type { SessionMention } from "../main/search-db"
+import { lookupFor, relatedName } from "./match"
+import type { CompanionSession, CompanionView, ProbeMessage } from "./types"
+
+export type CompanionHost = {
+  /** dist/ folder (dev) */
+  root: string
+  sessions(): SessionItem[]
+  isArchived(id: string): boolean
+  sessionsMentioning(ids: string[], prefixes: string[]): { exact: SessionMention[]; related: SessionMention[] }
+  /** Brings ctrl's main window forward on that session */
+  open(sessionID: string): void
+  /** The window's close button turns the setting off */
+  disable(): void
+}
+
+const WIDTH = 300
+const MAX_ROWS = 8
+const MARGIN = 18
+
+type Saved = { x: number; y: number }
+
+export class Companion {
+  private win?: BrowserWindow
+  private probe?: ChildProcess
+  private enabled = false
+  private trusted = true
+  private context: Extract<ProbeMessage, { type: "context" }> | null = null
+  private lastSent = ""
+  private timer?: ReturnType<typeof setTimeout>
+  private restarts = 0
+  private readonly savedPath = join(app.getPath("userData"), "companion.json")
+
+  constructor(private host: CompanionHost) {
+    ipcMain.on("companion:open", (_e, id: string) => this.host.open(id))
+    ipcMain.on("companion:resize", (_e, height: number) => this.resize(height))
+    ipcMain.on("companion:close", () => this.host.disable())
+    ipcMain.on("companion:access", () => {
+      systemPreferences.isTrustedAccessibilityClient(true)
+      void shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+    })
+  }
+
+  setEnabled(on: boolean) {
+    if (process.platform !== "darwin" || on === this.enabled) return
+    this.enabled = on
+    if (on) {
+      this.restarts = 0
+      this.createWindow()
+      this.startProbe()
+    } else {
+      this.stopProbe()
+      this.win?.destroy()
+      this.win = undefined
+      this.context = null
+      this.lastSent = ""
+    }
+  }
+
+  /** Sessions or resources changed somewhere: refresh the list soon (coalesced). */
+  changed() {
+    if (!this.enabled || !this.context || this.timer) return
+    this.timer = setTimeout(() => {
+      this.timer = undefined
+      this.render()
+    }, 300)
+  }
+
+  dispose() {
+    this.enabled = false
+    this.stopProbe()
+  }
+
+  // ---------- native helper ----------
+
+  private binary() {
+    return app.isPackaged
+      ? join(process.resourcesPath, "companion", "ctrl-context")
+      : join(this.host.root, "dist", "companion", "ctrl-context")
+  }
+
+  private startProbe() {
+    const bin = this.binary()
+    if (!existsSync(bin)) return console.error(`[ctrl] companion: ${bin} is missing (npm run build)`)
+    const child = spawn(bin, ["--self-pid", String(process.pid)], { stdio: ["pipe", "pipe", "inherit"] })
+    this.probe = child
+    createInterface({ input: child.stdout! }).on("line", (line) => {
+      let msg: ProbeMessage
+      try {
+        msg = JSON.parse(line)
+      } catch {
+        return
+      }
+      if (msg.type === "permission") this.trusted = msg.trusted
+      else this.context = msg
+      this.render()
+    })
+    child.on("exit", (code) => {
+      if (this.probe !== child) return
+      this.probe = undefined
+      if (!this.enabled || this.restarts >= 5) return
+      console.error(`[ctrl] companion helper exited (${code}), restarting`)
+      setTimeout(() => this.enabled && !this.probe && this.startProbe(), 1000 * 2 ** this.restarts++)
+    })
+  }
+
+  private stopProbe() {
+    const child = this.probe
+    this.probe = undefined
+    // Closing stdin tells it to exit; the kill covers a helper stuck in an AX call.
+    child?.stdin?.end()
+    child?.kill()
+  }
+
+  // ---------- matching ----------
+
+  private compute(): CompanionView {
+    const ctx = this.context
+    if (!ctx) return { trusted: this.trusted, context: null, sessions: [] }
+    const lookup = lookupFor(ctx.urls)
+    const first = lookup.exact[0]
+    const mentions = this.host.sessionsMentioning(lookup.exact, lookup.related)
+    const byID = new Map(this.host.sessions().map((s) => [s.id, s]))
+    const rows = new Map<string, CompanionSession>()
+    for (const m of [...mentions.exact, ...mentions.related]) {
+      const s = byID.get(m.session_id)
+      if (!s || rows.has(s.id)) continue // newest first, and exact before related
+      rows.set(s.id, {
+        id: s.id,
+        title: s.title,
+        status: s.status,
+        archived: this.host.isArchived(s.id),
+        last: m.last,
+        via: lookup.names.get(m.resource_id) ?? relatedName(m.resource_id),
+        exact: m.resource_id === first,
+      })
+    }
+    const sessions = [...rows.values()]
+      .sort((a, b) => Number(a.archived) - Number(b.archived) || Number(b.exact) - Number(a.exact) || b.last - a.last)
+      .slice(0, MAX_ROWS)
+    const resource = first && lookup.names.get(first)
+    return {
+      trusted: this.trusted,
+      context: { app: ctx.app, label: ctx.label || resource || ctx.title || undefined, resource },
+      sessions,
+    }
+  }
+
+  private render() {
+    const win = this.win
+    if (!win || win.isDestroyed()) return
+    const view = this.compute()
+    const json = JSON.stringify(view)
+    if (json === this.lastSent) return
+    this.lastSent = json
+    win.webContents.send("companion:view", view)
+  }
+
+  // ---------- window ----------
+
+  private createWindow() {
+    const saved = this.loadPosition()
+    const area = screen.getPrimaryDisplay().workArea
+    const win = new BrowserWindow({
+      // An NSPanel that doesn't activate ctrl when clicked: the app you were in stays frontmost,
+      // so its context stays on screen.
+      type: "panel",
+      width: WIDTH,
+      height: 96,
+      x: saved?.x ?? area.x + MARGIN,
+      y: saved?.y ?? area.y + area.height - 96 - MARGIN,
+      show: false,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      hasShadow: true,
+      alwaysOnTop: true,
+      vibrancy: "popover",
+      visualEffectState: "active",
+      webPreferences: { preload: join(this.host.root, "dist", "companion-preload.cjs"), sandbox: false },
+    })
+    this.win = win
+    win.setAlwaysOnTop(true, "floating")
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
+    win.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
+    win.webContents.on("will-navigate", (e) => e.preventDefault())
+    win.on("moved", () => this.savePosition())
+    win.webContents.once("did-finish-load", () => {
+      this.lastSent = ""
+      this.render()
+      win.showInactive()
+    })
+    const dev = process.env.VITE_DEV_URL
+    if (dev) void win.loadURL(new URL("companion/index.html", dev).href)
+    else void win.loadFile(join(this.host.root, "dist", "renderer", "companion", "index.html"))
+  }
+
+  /** Fits the content; a window in the lower half of its screen grows upward so it stays in its corner. */
+  private resize(height: number) {
+    const win = this.win
+    if (!win || win.isDestroyed()) return
+    const h = Math.max(40, Math.min(600, Math.ceil(height)))
+    const b = win.getBounds()
+    if (b.height === h) return
+    const area = screen.getDisplayMatching(b).workArea
+    const anchorBottom = b.y + b.height / 2 > area.y + area.height / 2
+    let y = anchorBottom ? b.y + b.height - h : b.y
+    y = Math.max(area.y, Math.min(y, area.y + area.height - h))
+    win.setBounds({ x: b.x, y, width: WIDTH, height: h })
+  }
+
+  private loadPosition(): Saved | undefined {
+    try {
+      const saved = JSON.parse(readFileSync(this.savedPath, "utf8")) as Saved
+      // Forget positions on a screen that's gone.
+      const visible = screen.getAllDisplays().some((d) => {
+        const a = d.workArea
+        return saved.x >= a.x && saved.x < a.x + a.width && saved.y >= a.y && saved.y < a.y + a.height
+      })
+      return visible ? saved : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  private savePosition() {
+    if (!this.win) return
+    const { x, y } = this.win.getBounds()
+    try {
+      writeFileSync(this.savedPath, JSON.stringify({ x, y }))
+    } catch {}
+  }
+}

@@ -686,6 +686,21 @@ export function Settings({
           ))}
         </div>
 
+        <h2>Companion</h2>
+        <div className="settings-card">
+          <div className="setting">
+            <div>
+              <div className="setting-title">Companion window</div>
+              <div className="setting-desc">
+                A small window that stays on top and lists the sessions that mentioned what you're looking at: the PR
+                or issue in your browser, the Slack thread or channel, the Notion page. Experimental. Reading Slack,
+                Notion and Linear needs Accessibility access, browsers ask for permission to read their tab.
+              </div>
+            </div>
+            <Toggle on={settings.companion} onChange={(companion) => void window.ctrl.setSettings({ companion })} />
+          </div>
+        </div>
+
         <h2>Agents</h2>
         <div className="settings-card">
           <SkillRow skill={state.skill} />

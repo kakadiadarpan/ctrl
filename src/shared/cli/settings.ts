@@ -67,6 +67,11 @@ export const SETTING_KEYS: SettingKey[] = [
     description: "Bindings for an app command, e.g. [\"Cmd+Shift+N\"]; [] disables it, null restores the default",
   },
   {
+    key: "companion",
+    type: { kind: "bool" },
+    description: "Always-on-top window listing the sessions that mentioned what's on screen (browser tab, Slack thread, Notion page)",
+  },
+  {
     key: "adapterModes.<adapter>",
     type: { kind: "enum", values: ["off", "links", "live"] },
     description: "Resource adapter mode: off hides its links, links only, or live details",
