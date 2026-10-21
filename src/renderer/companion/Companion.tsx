@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import type { CompanionApi, CompanionGroup, CompanionSession, CompanionView } from "../../companion/types"
 import { age } from "../format"
 import { Icon } from "../icons"
@@ -51,7 +51,7 @@ export function Companion() {
         </button>
       )}
       {view?.groups.length ? (
-        view.groups.map((g) => <Group key={g.id} group={g} />)
+        <Sections groups={view.groups} />
       ) : (
         <div className="empty">
           {!ctx
@@ -65,29 +65,63 @@ export function Companion() {
   )
 }
 
-function Group({ group }: { group: CompanionGroup }) {
-  // Archived is folded until you open it (kept while the window lives).
-  const foldable = group.kind === "archived"
-  const [open, setOpen] = useState(!foldable)
+/** The sidebar's layout: Spaces (one folder per space), then Recents and Archived, which fold. */
+function Sections({ groups }: { groups: CompanionGroup[] }) {
+  // Kept while the window lives, like the sidebar's (which are saved): Recents open, Archived folded.
+  const [recentsOpen, setRecentsOpen] = useState(true)
+  const [archivedOpen, setArchivedOpen] = useState(false)
+  const spaces = groups.filter((g) => g.kind === "space")
+  const recents = groups.find((g) => g.kind === "recents")
+  const archived = groups.find((g) => g.kind === "archived")
   return (
-    <div className={`companion-group ${group.kind}`}>
-      {foldable ? (
-        <button className="row space-header companion-space foldable" onClick={() => setOpen((o) => !o)}>
-          <Icon name="archive" />
-          <span className="label">{group.name}</span>
-          <span className="meta">{group.sessions.length}</span>
-          <span className={`companion-chevron ${open ? "open" : ""}`}>
-            <Icon name="chevron-right" />
-          </span>
-        </button>
-      ) : (
-        <div className="row space-header companion-space">
-          <Icon name={group.kind === "space" ? "folder-open" : "compose"} />
-          <span className="label">{group.name}</span>
-        </div>
+    <>
+      {spaces.length > 0 && (
+        <section className="section">
+          <div className="section-header">
+            <span>Spaces</span>
+          </div>
+          {spaces.map((g) => (
+            <div key={g.id} className="space">
+              <div className="row space-header companion-space">
+                <Icon name="folder-open" />
+                <span className="label">{g.name}</span>
+              </div>
+              <div className="space-sessions">
+                {g.sessions.map((s) => (
+                  <Row key={s.id} session={s} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
       )}
-      {open && group.sessions.map((s) => <Row key={s.id} session={s} />)}
-    </div>
+      {recents && (
+        <FoldSection title="Recents" open={recentsOpen} onToggle={() => setRecentsOpen((o) => !o)}>
+          {recents.sessions.map((s) => (
+            <Row key={s.id} session={s} />
+          ))}
+        </FoldSection>
+      )}
+      {archived && (
+        <FoldSection title="Archived" className="archived" open={archivedOpen} onToggle={() => setArchivedOpen((o) => !o)}>
+          {archived.sessions.map((s) => (
+            <Row key={s.id} session={s} />
+          ))}
+        </FoldSection>
+      )}
+    </>
+  )
+}
+
+function FoldSection(props: { title: string; open: boolean; onToggle(): void; className?: string; children: ReactNode }) {
+  return (
+    <section className={`section ${props.className ?? ""}`}>
+      <button className="section-header toggle" onClick={props.onToggle}>
+        <span>{props.title}</span>
+        <Icon name={props.open ? "chevron-down" : "chevron-right"} />
+      </button>
+      {props.open && props.children}
+    </section>
   )
 }
 

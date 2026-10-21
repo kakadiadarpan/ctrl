@@ -112,8 +112,8 @@ where it lives.
 ## Companion (experimental)
 
 - Always-on-top window, off by default (Settings → Companion, or `ctrl settings set companion true`), that
-  lists the sessions that mentioned what's on screen, grouped like the sidebar (by space, then Recents, then
-  Archived, folded by default with its count) with the same rows (fx tag, status, age) and colors, newest first: the PR, issue or page in the browser tab
+  lists the sessions that mentioned what's on screen, laid out like the sidebar (Spaces with a folder per space,
+  then Recents, open by default, and Archived, folded, both foldable) with the same rows (fx tag, status, age) and colors, newest first: the PR, issue or page in the browser tab
   (Chrome, Arc, Brave, Edge, Dia, Vivaldi, Safari), the Slack thread (side panel, or the one under the pointer
   on the Threads page) or channel, the Notion page, the Linear issue. A Slack channel also lists sessions that
   mentioned threads in it (marked with #). Click a row to open it in ctrl. Draggable, sized to its content,

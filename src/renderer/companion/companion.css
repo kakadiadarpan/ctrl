@@ -65,38 +65,19 @@ body {
   color: #f59e0b;
 }
 
-.companion-group + .companion-group {
-  margin-top: 6px;
-}
-
-/* Group headings aren't clickable, unlike the sidebar's space headers (except Archived, which folds). */
-.companion-space:not(.foldable):hover {
+/* Space headings aren't clickable here, unlike the sidebar's. */
+.companion-space:hover {
   background: none;
 }
 
-.companion-chevron {
-  display: inline-flex;
-  color: var(--muted);
-  transition: transform 0.12s;
+/* Sections sit closer than in the sidebar; the first one hugs the header. */
+.companion .section {
+  margin-top: 12px;
 }
 
-.companion-chevron .icon {
-  width: 12px;
-  height: 12px;
-  color: inherit;
-}
-
-.companion-chevron.open {
-  transform: rotate(90deg);
-}
-
-.companion-group.recents .companion-space,
-.companion-group.archived .companion-space {
-  color: var(--muted);
-}
-
-.companion-group.archived .companion-session {
-  color: var(--dim);
+.companion-header + .section,
+.companion-access + .section {
+  margin-top: 2px;
 }
 
 /* Mentioned a thread in the channel on screen, not the thing itself. */
