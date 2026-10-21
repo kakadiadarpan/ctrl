@@ -153,6 +153,8 @@ export type Settings = {
   shortcuts: ShortcutOverrides
   /** Per resource adapter id; adapters not listed use defaultAdapterMode */
   adapterModes: Record<string, AdapterMode>
+  /** Always-on-top window with the sessions that mentioned what's on screen (src/companion), macOS only */
+  companion: boolean
 }
 
 export const FONT_SIZE = { min: 9, max: 24, default: 13 }

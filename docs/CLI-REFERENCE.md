@@ -1007,6 +1007,7 @@ ctrl events [--type <type>...] [--session <session>...]
 | `soundsWhenFocused` | boolean | Also play sounds while ctrl is focused |
 | `soundChoices.<event>` | system sound name \| absolute path \| null | Sound per event (needs-input, failed, finished): macOS sound name, absolute file path, or null |
 | `shortcuts.<command>` | string[] \| null | Bindings for an app command, e.g. ["Cmd+Shift+N"]; [] disables it, null restores the default |
+| `companion` | boolean | Always-on-top window listing the sessions that mentioned what's on screen (browser tab, Slack thread, Notion page) |
 | `adapterModes.<adapter>` | "off" \| "links" \| "live" | Resource adapter mode: off hides its links, links only, or live details |
 
 ## Errors

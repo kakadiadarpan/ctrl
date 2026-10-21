@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS: Settings = {
   ctrlInstructions: true,
   adapterModes: {},
   shortcuts: {},
+  companion: false,
 }
 
 type Persisted = {

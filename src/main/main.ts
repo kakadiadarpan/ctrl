@@ -47,6 +47,7 @@ import { Store } from "./store"
 import { Terminal } from "./terminal"
 import { WrappedLinks } from "./wrapped-links" // wrapped-links
 import { cliThemeName, listThemes } from "./themes"
+import { Companion } from "../companion/companion"
 
 const root = join(fileURLToPath(import.meta.url), "../..")
 const LIGHT_BG = "#f7f7f6"
@@ -192,6 +193,7 @@ const push = () => {
     syncCtrlInstructions()
     attention.refreshBadge(sessions)
     send("state", state())
+    companion.changed()
     for (const cb of [...changeListeners]) {
       try {
         cb()
@@ -289,6 +291,7 @@ const recheckFx = async () => {
 const search = new Search(join(root, "dist/indexer.cjs"), join(app.getPath("userData"), "search.db"), (ids) => {
   send("resources:changed", ids)
   adapters.resourcesChanged(ids)
+  companion.changed()
 })
 
 const adapters = new AdapterService(
@@ -302,6 +305,26 @@ const adapters = new AdapterService(
   },
 )
 void adapters.check()
+
+const companion = new Companion({
+  root,
+  sessions: () => sessions,
+  isArchived: (id) => !!store.data.archived[id],
+  spaceOf: (id) => {
+    const spaceID = store.data.assignments[id]
+    return spaceID ? store.data.spaces.find((s) => s.id === spaceID) : undefined
+  },
+  sessionsMentioning: (ids, prefixes) => search.sessionsMentioning(ids, prefixes),
+  open: (id) => {
+    if (win && !win.isDestroyed()) {
+      if (win.isMinimized()) win.restore()
+      win.show()
+      app.focus({ steal: true })
+    }
+    openSession(id)
+  },
+  disable: () => applySettings({ companion: false }),
+})
 
 // wrapped-links
 const wrappedLinks = new WrappedLinks(
@@ -505,6 +528,7 @@ const applySettings = (patch: Partial<Settings>) => {
     // Panels re-read their resources: without an adapter that's off, with or without its details.
     send("resources:changed", null)
   }
+  if (patch.companion !== undefined && !headless) companion.setEnabled(patch.companion)
   loadThemes()
   applyTheme()
 }
@@ -1536,6 +1560,7 @@ app.whenReady().then(async () => {
   // Both checks first: the session on screen at quit comes back, whichever harness it belongs to.
   void Promise.all([recheckOpencode(), recheckFx()]).then(restoreOpen)
   search.start()
+  if (!headless) companion.setEnabled(store.data.settings.companion)
   refreshSkill()
   if (!store.data.ui.agentsPrompted) {
     win!.webContents.once("did-finish-load", () =>
@@ -1578,6 +1603,7 @@ app.on("will-quit", () => {
   fxTerms.dispose()
   fx.stop()
   search.stop()
+  companion.dispose()
   adapters.stop()
   updater.stop()
 })
