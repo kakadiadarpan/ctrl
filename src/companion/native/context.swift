@@ -1,5 +1,5 @@
-// ctrl-context: tells the companion what's on screen. Ported from Orchid
-// (github.com/lucleray/orchid, AccessibilityWindowSnapshotter + Slack parsers).
+// ctrl-context: tells the companion what's on screen. Ported from Orchid, an earlier prototype
+// (its AccessibilityWindowSnapshotter and Slack parsers).
 //
 // Watches the frontmost app (activation notification + a 1s tick) and prints
 // one JSON line on stdout whenever what it sees changes:
@@ -330,7 +330,7 @@ enum Slack {
         title.hasPrefix("Threads - ") && title.contains(" - Slack")
     }
 
-    /// "inc-1 (Channel) - Vercel - 2 new items - Slack [Main]" → ("inc-1", "Channel")
+    /// "general (Channel) - Acme - 2 new items - Slack [Main]" → ("general", "Channel")
     static func titleParts(_ title: String) -> (name: String, kind: String?)? {
         if let m = firstMatch(#"^(.+?) \((Channel|DM|Group DM|Private channel)\) - .+ - Slack"#, in: title) {
             return (m[1], m[2])
