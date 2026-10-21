@@ -41,7 +41,7 @@ Don't guess flags: read `help` first. The most used ones:
 | Command | Does |
 |---|---|
 | `session list [--space <s>] [--status needs-input]` | find sessions |
-| `session new [--space <s>] [--title t] [--prompt p] [--focus]` | start one (background unless `--focus`) |
+| `session new [--space <s>] [--title t] [--prompt p\|-] [--focus]` | start one (background unless `--focus`; `--prompt -` reads stdin) |
 | `session wait <s> --for done` | block until its turn is over |
 | `session read <s>` | digest of another session's context |
 | `session reference <src> --into <dst> [--text t] [--submit]` | reference one session in another |
@@ -63,6 +63,7 @@ Don't guess flags: read `help` first. The most used ones:
   command: mention it to the user ("you can undo this with …") or run it if they ask.
 - Run it through `ctrl.sh`, or with `AI_AGENT=<your name>` set, so sessions you create are marked as made
   by an agent (opencode sets `AI_AGENT` for you).
+- Pass long or multi-line text on stdin, not inline: `--prompt - < prompt.md`, `--text - <<'EOF'`.
 - Use `--fields id,title` on lists to keep output small.
 - To check a prompt was taken (`session new --prompt`, `session send`), look for status `running`, then
   `session wait <s> --for done`. fx only logs a turn once it ends, so `session read` shows an fx turn in

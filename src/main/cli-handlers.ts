@@ -100,6 +100,9 @@ export type CliHost = {
 
 // ---------- helpers ----------
 
+/** Most ms `session new` spends before replying: under the CLI's default --timeout (15s). */
+export const SESSION_NEW_BUDGET = 12_000
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 const ensureString = (value: unknown, what: string): string => {
@@ -122,7 +125,7 @@ const folder = (path: string, caller: CallerContext) => {
   return abs
 }
 
-export function createHandlers(host: CliHost): Record<string, Handler> {
+export function createHandlers(host: CliHost, { sessionNewBudget = SESSION_NEW_BUDGET } = {}): Record<string, Handler> {
   const { store } = host
 
   const sessionView = (s: SessionItem) => ({
@@ -344,17 +347,29 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
       }, timeout)
     })
 
+  /** Rejects with TIMEOUT when `work` (a harness call) takes longer than `ms`, instead of hanging the reply. */
+  const bounded = <T>(work: Promise<T>, ms: number, what: string, hint?: string): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new CliError("TIMEOUT", `Timed out after ${ms}ms waiting for ${what}`, hint ? { hint } : {})),
+        ms,
+      )
+    })
+    return Promise.race([work, timeout]).finally(() => clearTimeout(timer))
+  }
+
   /**
    * After sending a prompt, wait (briefly) until the turn shows as started, so `send` then
    * `wait --for done` can't see the idle state from before the prompt.
    */
-  const started = (id: string, before: number) =>
+  const started = (id: string, before: number, max = 5000) =>
     waitFor(
       () => {
         const s = byID(id)
         return s && (s.status === "running" || s.status === "needs-input" || s.status === "failed" || s.updated > before)
       },
-      5000,
+      max,
       "the turn to start",
     ).catch(() => undefined)
 
@@ -634,33 +649,48 @@ export function createHandlers(host: CliHost): Record<string, Handler> {
     },
     "session get": (args, req) => sessionView(resolveSession(args.session, req.caller)),
     "session new": async (args, req) => {
+      // Everything below shares one budget that ends before the CLI's default --timeout (15s), so the
+      // agent always gets a reply that says what happened, never a silent wait.
+      const deadline = Date.now() + sessionNewBudget
+      const left = () => Math.max(250, deadline - Date.now())
       const spaceID = args.space !== undefined ? resolveTargetSpace(args.space, req.caller) : null
       const space = spaceID ? store.space(spaceID) : undefined
       const harness: Harness | undefined = args.harness
       const directory = args.directory ? folder(args.directory, req.caller) : undefined
       const model = args.model ? parseModelArg(args.model, harness ?? space?.harness ?? store.data.settings.defaultHarness) : undefined
-      const created = await host.newSession({ spaceID, harness, directory, model, focus: !!args.focus })
+      const created = await bounded(
+        host.newSession({ spaceID, harness, directory, model, focus: !!args.focus }),
+        left(),
+        "the harness to create the session",
+        "Check the harness: ctrl app status. The session may still show up: ctrl session list --limit 5",
+      )
       if (args.focus && args.raise) host.window("raise")
+      const unsent = (id: string) =>
+        args.prompt ? `${id} was created, the prompt may not have been sent: ctrl session read ${id}, then ctrl session send ${id} --text -` : undefined
       if ("pending" in created) {
         const sentAt = Date.now()
-        if (args.prompt) await host.promptTerminal(created.terminal, args.prompt)
+        if (args.prompt) {
+          await bounded(host.promptTerminal(created.terminal, args.prompt), left(), "fx to take the prompt", "ctrl session list --harness fx --limit 5")
+        }
         // fx reports the id once its process is up (and, for some versions, after the first prompt).
-        const id = await waitFor(() => host.termSession(created.terminal) ?? undefined, 15000, "fx to report the new session's id").catch(
+        const id = await waitFor(() => host.termSession(created.terminal) ?? undefined, left(), "fx to report the new session's id").catch(
           () => undefined,
         )
         if (!id) return created
         markCreatedByAgent(id, req.caller)
-        if (args.title) await host.renameSession(id, args.title)
-        const s = await waitFor(() => byID(id), 5000, "the session to show up").catch(() => undefined)
-        if (s && args.prompt) await started(id, sentAt)
+        if (args.title) await bounded(host.renameSession(id, args.title), left(), "the rename", `ctrl session rename ${id} <title>`)
+        const s = await waitFor(() => byID(id), left(), "the session to show up").catch(() => undefined)
+        if (s && args.prompt) await started(id, sentAt, Math.min(5000, left()))
         return s ? sessionView(byID(id) ?? s) : { id, pending: true }
       }
       markCreatedByAgent(created.id, req.caller)
-      if (args.title) await host.renameSession(created.id, args.title)
-      const s = await waitFor(() => byID(created.id), 5000, "the session to show up")
+      if (args.title) {
+        await bounded(host.renameSession(created.id, args.title), left(), "the rename", unsent(created.id) ?? `ctrl session rename ${created.id} <title>`)
+      }
+      const s = await waitFor(() => byID(created.id), left(), "the session to show up")
       if (args.prompt) {
-        await host.prompt(created.id, args.prompt)
-        await started(created.id, s.updated)
+        await bounded(host.prompt(created.id, args.prompt), left(), "the prompt to be sent", unsent(created.id))
+        await started(created.id, s.updated, Math.min(5000, left()))
       }
       return sessionView(byID(created.id) ?? s)
     },

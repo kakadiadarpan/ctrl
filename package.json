@@ -1,6 +1,6 @@
 {
   "name": "ctrl",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "private": true,
   "type": "module",
   "main": "dist/main.js",
@@ -9,6 +9,7 @@
     "build": "node scripts/build.mjs && vite build",
     "start": "npm run build && electron .",
     "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
     "postinstall": "chmod +x node_modules/node-pty/prebuilds/*/spawn-helper || true; node scripts/brand-electron.mjs",
     "icon": "node scripts/icon.mjs",
     "brand": "node scripts/brand-electron.mjs",

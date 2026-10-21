@@ -159,7 +159,8 @@ where it lives.
 - `ctrl` CLI for agents: JSON in/out, self-describing (`ctrl help --json`, `ctrl docs`), stable error codes
   with hints. Principles and conventions in [CLI.md](CLI.md), every command in [CLI-REFERENCE.md](CLI-REFERENCE.md)
   (`src/cli/cli.ts`, `src/shared/cli/`)
-- Sessions: list / filter / page, get, new (space settings apply, `--prompt`, background unless `--focus`),
+- Sessions: list / filter / page, get, new (space settings apply, `--prompt`, background unless `--focus`,
+  always replies within 12s: a stuck harness gives a `TIMEOUT` that says whether the session was created),
   focus, rename, move, archive / unarchive, send, wait for a status, stop, `ref`,
   reference one session in another, read a session's digest (`src/main/cli-handlers.ts`)
 - Spaces: list, get, create, rename, set folder / harness / model / instructions / ctrl instructions, reorder, fold, archive all,
@@ -173,8 +174,10 @@ where it lives.
   `--cached` skips fetching. `resources refresh [<id|url>...]` refetches regardless of the cache, by id, URL or
   scope. Both report adapters that couldn't fetch in `errors` (rate limited with `retryAt`, CLI not set up with
   the fixing command)
-- Selectors: `self` (the calling session, via `OPENCODE_SESSION_ID` or ctrl's `CTRL_TERM_ID` in fx ptys),
-  `current`, `name:<title>`; ambiguous names list candidates
+- Selectors: `self` (the calling session, via `OPENCODE_SESSION_ID` or ctrl's `CTRL_TERM_ID` in fx ptys, or
+  its space for `--space`), `current`, `name:<title>`; ambiguous names list candidates
+- A CLI killed before it answers still replies: the launcher prints a JSON error naming the signal, and
+  suggests stdin (`--prompt -`) when an argument was long (`bin/ctrl`)
 - Sessions an agent creates are marked `createdByAgent: {agent, by, at}` (by = the agent's own session, via
   `self`). Agents are detected from the env their harness sets (`AI_AGENT`, `AGENT=1`, `CLAUDECODE`,
   `CURSOR_AGENT`, ctrl's `CTRL_TERM_ID` for fx); ctrl strips those from the terminals it spawns

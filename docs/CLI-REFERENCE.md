@@ -117,7 +117,7 @@ ctrl session list [--space <space>] [--archived] [--all] [--status needs-input|r
 
 | Argument | Meaning |
 |---|---|
-| `--space <space>` | Only sessions in this space (id, `name:<name>`, `current`), or `none` for sessions in no space |
+| `--space <space>` | Only sessions in this space (id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen)), or `none` for sessions in no space |
 | `--archived / --no-archived` | Only archived sessions |
 | `--all / --no-all` | Archived sessions too |
 | `--status needs-input\|running\|failed\|unread\|idle` | Only these statuses (repeatable) · repeatable |
@@ -163,25 +163,27 @@ ctrl session new [--space <space>] [--harness opencode|fx] [--directory <directo
 
 - Created in the background: the screen doesn't change unless --focus.
 - Flags override the space's settings for this session only.
+- Replies within 12s: if the harness is stuck, a TIMEOUT error says whether the session was created and what to run next.
 
 | Argument | Meaning |
 |---|---|
-| `--space <space>` | Space to start it in (id, `name:<name>`, `current`); omitted = no space |
+| `--space <space>` | Space to start it in (id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen)); omitted = no space |
 | `--harness opencode\|fx` | Harness |
 | `--directory <directory>` | Folder to start in (default: the space's folder, else ~) |
 | `--model <model>` | Model, `<provider>/<model>[#<variant>]` (opencode) or `<model>[#<effort>]` (fx) |
 | `--title <title>` | Title (opencode: right away; fx: once fx lets go of it) |
-| `--prompt <prompt>` | First message, sent right away. `-` reads stdin |
+| `--prompt <prompt>` | First message, sent right away. `-` reads stdin (use it for long or multi-line prompts) |
 | `--focus / --no-focus` | Put it on screen |
 | `--raise / --no-raise` | With --focus: also bring ctrl's window to the front |
 
 **Returns:** `Session`
 
-- **Harness:** fx: fx only reports a new session's id once its process is up; `new` waits for it (up to 15s). If it doesn't come, `data` is {pending:true, terminal} and the session shows up in `session list` later.
+- **Harness:** fx: fx only reports a new session's id once its process is up; `new` waits for it (within its 12s budget). If it doesn't come, `data` is {pending:true, terminal} and the session shows up in `session list` later.
 - **Harness:** fx: --prompt is typed into the fx prompt and submitted; the reply has `status: running` once the turn started. To know it's over, `ctrl session wait <id> --for done`. fx writes a turn to its log only when it ends, so until then `session read` shows it as `Turn N · running`.
 
 ```bash
 ctrl session new --space name:reviews --title "Review #42" --prompt "Review PR #42"
+ctrl session new --space self --title "Follow-up" --prompt - < prompt.md
 ctrl session new --focus --raise
 ```
 
@@ -232,7 +234,7 @@ ctrl session move <session> --space <space>
 | Argument | Meaning |
 |---|---|
 | `<session>` | Session: id, `self`, `current` or `name:<title>` · required |
-| `--space <space>` | Target space (id, `name:<name>`, `current`), or `none` · required |
+| `--space <space>` | Target space (id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen)), or `none` · required |
 
 **Returns:** `Session & {changed}`
 
@@ -275,7 +277,7 @@ ctrl session send <session> --text <text> [--submit] [--focus]
 | Argument | Meaning |
 |---|---|
 | `<session>` | Session: id, `self`, `current` or `name:<title>` · required |
-| `--text <text>` | Message. `-` reads stdin · required |
+| `--text <text>` | Message. `-` reads stdin (use it for long or multi-line text) · required |
 | `--submit / --no-submit` | --no-submit only types it into the session's prompt (see harness notes) · default: true |
 | `--focus / --no-focus` | Put the session on screen first |
 
@@ -414,7 +416,7 @@ ctrl space get <space> [--sessions]
 
 | Argument | Meaning |
 |---|---|
-| `<space>` | Space: id, `name:<name>` or `current` (the space of the session on screen) · required |
+| `<space>` | Space: id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen) · required |
 | `--sessions / --no-sessions` | Include its sessions (non-archived) |
 
 **Returns:** `Space & {items?:[Session]}`
@@ -451,7 +453,7 @@ ctrl space rename <space> <name>
 
 | Argument | Meaning |
 |---|---|
-| `<space>` | Space: id, `name:<name>` or `current` (the space of the session on screen) · required |
+| `<space>` | Space: id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen) · required |
 | `<name>` | New name · required |
 
 **Returns:** `Space & {changed}`
@@ -466,7 +468,7 @@ ctrl space set <space> [--directory <directory>] [--harness opencode|fx|default]
 
 | Argument | Meaning |
 |---|---|
-| `<space>` | Space: id, `name:<name>` or `current` (the space of the session on screen) · required |
+| `<space>` | Space: id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen) · required |
 | `--directory <directory>` | Folder new sessions start in; "" clears it (back to ~) |
 | `--harness opencode\|fx\|default` | Harness for new sessions; `default` follows the app setting |
 | `--model <model>` | opencode model for new sessions, `<provider>/<model>[#<variant>]`; "" clears it |
@@ -493,7 +495,7 @@ ctrl space move <space> --index <n>
 
 | Argument | Meaning |
 |---|---|
-| `<space>` | Space: id, `name:<name>` or `current` (the space of the session on screen) · required |
+| `<space>` | Space: id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen) · required |
 | `--index <n>` | Position, 0 = top · required |
 
 **Returns:** `Space & {changed}`
@@ -508,7 +510,7 @@ ctrl space fold <space>
 
 | Argument | Meaning |
 |---|---|
-| `<space>` | Space: id, `name:<name>` or `current` (the space of the session on screen) · required |
+| `<space>` | Space: id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen) · required |
 
 **Returns:** `Space & {changed}`
 
@@ -522,7 +524,7 @@ ctrl space unfold <space>
 
 | Argument | Meaning |
 |---|---|
-| `<space>` | Space: id, `name:<name>` or `current` (the space of the session on screen) · required |
+| `<space>` | Space: id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen) · required |
 
 **Returns:** `Space & {changed}`
 
@@ -536,7 +538,7 @@ ctrl space archive-all <space>
 
 | Argument | Meaning |
 |---|---|
-| `<space>` | Space: id, `name:<name>` or `current` (the space of the session on screen) · required |
+| `<space>` | Space: id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen) · required |
 
 **Returns:** `{archived:[id], undo?}`
 
@@ -777,7 +779,7 @@ ctrl resources list [--session <session>...] [--space <space>] [--type <type>...
 | Argument | Meaning |
 |---|---|
 | `--session <session>` | Sessions (repeatable; default `current`) · repeatable |
-| `--space <space>` | Every session in this space instead |
+| `--space <space>` | Every session in this space instead (id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen)) |
 | `--type <type>` | Only these link types, e.g. github-pr (repeatable) · repeatable |
 | `--limit <n>` | Max items (max 500) · default: 100 |
 | `--cached / --no-cached` | Don't fetch: cached live details only, instant |
@@ -806,7 +808,7 @@ ctrl resources refresh [<id|url>...] [--session <session>...] [--space <space>] 
 |---|---|
 | `[<id\|url>...]` | Resources to refetch (default: the scope below) |
 | `--session <session>` | Without ids: these sessions' resources (repeatable; default `current`) · repeatable |
-| `--space <space>` | Without ids: every session in this space instead |
+| `--space <space>` | Without ids: every session in this space instead (id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen)) |
 | `--type <type>` | Only these link types (repeatable) · repeatable |
 | `--limit <n>` | Max items (max 500) · default: 100 |
 | `--wait <n>` | Most ms to wait (max 60000; raise --timeout past it) · default: 10000 |
