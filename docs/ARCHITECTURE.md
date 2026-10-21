@@ -185,7 +185,10 @@ ctrl-context (Swift) ──JSON line on change──► Companion (main) ──v
 - **Slack** (the tricky one): the channel id comes from Slack's own client URL in the AX tree
   (`app.slack.com/client/<team>/<channel>`); an open thread panel is the first permalink after
   `Thread in channel …`; on the Threads page, the card under the pointer gives `threads_view_<channel>-<ts>`.
-  A channel also matches the threads in it (`slack-thread:<channel>/` prefix). Keys don't depend on the
+  A channel also matches the threads in it (`slack-thread:<channel>/` prefix). Switching channels, Slack
+  updates the content before the window title, so a scan where the header (`Channel details for #…`) and the
+  title disagree is dropped. A DM opened from Activity keeps Activity's client URL, so its channel comes from
+  the message links on screen. Keys don't depend on the
   workspace, so a guessed workspace in a rebuilt permalink doesn't matter.
 - **Permissions:** the helper inherits ctrl's (TCC follows the responsible app): Accessibility for Slack,
   Notion and Linear, Automation per browser (`NSAppleEventsUsageDescription`). Electron apps only expose
@@ -195,7 +198,7 @@ ctrl-context (Swift) ──JSON line on change──► Companion (main) ──v
   frontmost, the helper keeps the last context.
 - The helper is built by `scripts/build.mjs` (universal, `swiftc`, only when its source changed) into
   `dist/companion/` and shipped in `Contents/Resources/companion`. `ctrl-context --once --debug` prints what
-  it sees in the frontmost app after 3s.
+  it sees in the frontmost app after 3s (`--app <bundle id>` reads a background app, without hover).
 
 ## CLI
 
