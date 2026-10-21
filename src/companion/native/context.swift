@@ -363,6 +363,15 @@ enum Slack {
         return "slack"
     }
 
+    /// The channel most message links on screen point to.
+    static func permalinkChannel(in snapshot: Snapshot) -> String? {
+        var counts: [String: Int] = [:]
+        for url in urls(in: snapshot.text) where isMessageURL(url) {
+            if let m = firstMatch(#"/archives/([A-Z][A-Z0-9]{2,})/p"#, in: url) { counts[m[1], default: 0] += 1 }
+        }
+        return counts.max(by: { $0.value < $1.value })?.key
+    }
+
     static func isMessageURL(_ url: String) -> Bool {
         firstMatch(#"^https://[a-z0-9-]+(?:\.enterprise)?\.slack\.com/archives/[A-Z][A-Z0-9]{2,}/p[0-9]{10,20}"#, in: url) != nil
     }
@@ -415,29 +424,47 @@ enum Slack {
         guard AX.focusedWindowTitle(pid) == snapshot.windowTitle else { return nil }
         var ctx = Context(app: "Slack", bundleID: bundleID, title: snapshot.windowTitle, label: nil, urls: [])
         if isThreadsPage(snapshot.windowTitle) {
-            if let hovered = hoveredThread(snapshot) { stickyThread = hovered }
+            if let hovered = hoveredThread(snapshot) {
+                // Some hover spots on a card don't carry its channel name: keep the one we had for it.
+                let channel = hovered.channel ?? (stickyThread?.url == hovered.url ? stickyThread?.channel : nil)
+                stickyThread = (hovered.url, channel)
+            }
             if let thread = stickyThread {
                 ctx.urls = [thread.url]
                 ctx.label = thread.channel.map { "Thread in #\($0)" } ?? "Thread"
             } else {
                 ctx.label = "Threads (hover one)"
             }
-            ctx.debug["hover"] = snapshot.hover ?? ""
+            if debugging {
+                ctx.debug["hover"] = snapshot.hover ?? ""
+                ctx.debug["text"] = snapshot.text
+            }
             return ctx
         }
         stickyThread = nil
         let parts = titleParts(snapshot.windowTitle)
-        let channelName = parts.map { $0.kind == "Channel" || $0.kind == "Private channel" ? "#\($0.name)" : $0.name }
+        // Switching channels, Slack updates the content (and its client URL) before the window title:
+        // until the header and the title agree, the URL may belong to the next channel. The next tick rescans.
+        let header = snapshot.lines.first(where: { $0.hasPrefix("Channel details for #") })
+            .map { String($0.dropFirst("Channel details for #".count)) }
+        // Compared loosely: the title can carry a prefix the header doesn't ("! announcements-engineering").
+        let loose = { (v: String) in v.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" } }
+        if let header, let parts, parts.kind != nil, !loose(parts.name).hasSuffix(loose(header)) { return nil }
+        let channelName = header.map { "#\($0)" }
+            ?? parts.map { $0.kind == "Channel" || $0.kind == "Private channel" ? "#\($0.name)" : $0.name }
         if let thread = sidePanelThread(snapshot.lines) {
             ctx.urls.append(thread.url)
             ctx.label = "Thread in #\(thread.channel)"
         }
-        if let channelID = clientChannelID(in: snapshot) {
+        // A DM opened from Activity keeps the Activity client URL: fall back to the channel its messages link to.
+        if let channelID = clientChannelID(in: snapshot) ?? (parts?.kind != nil ? permalinkChannel(in: snapshot) : nil) {
             ctx.urls.append("https://\(workspace(in: snapshot)).slack.com/archives/\(channelID)")
         }
         if ctx.label == nil { ctx.label = channelName }
-        ctx.debug["clientChannel"] = clientChannelID(in: snapshot) ?? ""
-        ctx.debug["textSample"] = String(snapshot.text.prefix(4_000))
+        if debugging {
+            ctx.debug["clientChannel"] = clientChannelID(in: snapshot) ?? ""
+            ctx.debug["text"] = snapshot.text
+        }
         return ctx
     }
 }
@@ -528,13 +555,17 @@ func option(_ name: String) -> String? {
     return args[i + 1]
 }
 let selfPid = pid_t(option("--self-pid") ?? "") ?? -1
+let debugging = args.contains("--debug")
 let watcher = Watcher(selfPid: selfPid)
 
 if args.contains("--once") {
     // Gives you time to switch to the app to inspect.
     Thread.sleep(forTimeInterval: Double(option("--delay") ?? "3") ?? 3)
     emit(["type": "permission", "trusted": AXIsProcessTrusted()])
-    if let app = NSWorkspace.shared.frontmostApplication, let ctx = watcher.scan(frontmost: app) {
+    // --app <bundle id> reads that app even in the background (no hover), so testing never takes focus.
+    let target = option("--app").flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first }
+        ?? NSWorkspace.shared.frontmostApplication
+    if let app = target, let ctx = watcher.scan(frontmost: app) {
         emit(ctx.json(includeDebug: args.contains("--debug")))
     }
     exit(0)
