@@ -30,13 +30,13 @@ before(async () => {
 after(() => rmSync(tmp, { recursive: true, force: true }))
 
 test("browser and Slack URLs become the indexer's keys", () => {
-  const pr = lookupFor(["https://github.com/vercel/front/pull/123/files?w=1"])
-  assert.deepEqual(pr.exact, ["github-pr:vercel/front#123"])
+  const pr = lookupFor(["https://github.com/acme/web/pull/123/files?w=1"])
+  assert.deepEqual(pr.exact, ["github-pr:acme/web#123"])
   assert.deepEqual(pr.related, [])
 
   // Slack thread side panel: a reply link collapses to its thread, then the channel (and its threads).
   const slack = lookupFor([
-    "https://vercel.slack.com/archives/C123ABC/p1784194033191299?thread_ts=1784193018.484539&cid=C123ABC",
+    "https://acme.slack.com/archives/C123ABC/p1784194033191299?thread_ts=1784193018.484539&cid=C123ABC",
     "https://slack.slack.com/archives/C123ABC",
   ])
   assert.deepEqual(slack.exact, ["slack-thread:C123ABC/1784193018.484539", "slack-channel:C123ABC"])

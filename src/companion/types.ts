@@ -13,7 +13,7 @@ export type CompanionSession = {
   archived: boolean
   /** Last time it mentioned the matched resource */
   last: number
-  /** The resource it mentioned, e.g. "vercel/front#123" or "Thread" */
+  /** The resource it mentioned, e.g. "acme/web#123" or "Thread" */
   via: string
   /** Mentioned the exact thing on screen (vs. its channel) */
   exact: boolean
@@ -27,7 +27,7 @@ export type CompanionView = {
     app: string
     /** Tab, channel or page title */
     label?: string
-    /** The resource it recognized, e.g. "vercel/front#123"; none when nothing on screen is a link ctrl knows */
+    /** The resource it recognized, e.g. "acme/web#123"; none when nothing on screen is a link ctrl knows */
     resource?: string
   } | null
   /** Matching sessions grouped like the sidebar: by space, then Recents (no space), then Archived */
