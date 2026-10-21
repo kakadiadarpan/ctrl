@@ -349,19 +349,8 @@ async function launch(wait: boolean) {
 
 // ---------- main ----------
 
-/** The launcher (bin/ctrl) passes the arguments as CTRL_ARGC + CTRL_ARG_<n>, plain node runs get argv. */
-function readArgv(env: NodeJS.ProcessEnv = process.env, argv = process.argv): string[] {
-  const count = env.CTRL_ARGC
-  if (count === undefined || !/^\d+$/.test(count)) return argv.slice(2)
-  const args: string[] = []
-  for (let i = 0; i < Number(count); i++) args.push(env[`CTRL_ARG_${i}`] ?? "")
-  for (let i = 0; i < Number(count); i++) delete env[`CTRL_ARG_${i}`]
-  delete env.CTRL_ARGC
-  return args
-}
-
 async function main() {
-  const { spec, args, help } = parse(readArgv())
+  const { spec, args, help } = parse(process.argv.slice(2))
   if (help) {
     process.stdout.write(commandHelp(spec) + "\n")
     return

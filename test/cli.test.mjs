@@ -3,7 +3,7 @@
 import * as esbuild from "esbuild"
 import assert from "node:assert/strict"
 import { spawn } from "node:child_process"
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import { createServer } from "node:net"
 import { tmpdir } from "node:os"
@@ -56,15 +56,13 @@ async function fakeApp(answer) {
 
 /**
  * A `node` first in PATH that behaves like the endpoint security tools that broke long prompts: it
- * SIGKILLs itself when any argument is over 1 KB, before running anything. Records its argv.
+ * SIGKILLs itself when any argument is over 1 KB, before running anything.
  */
 function strictNode() {
   const dir = mkdtempSync(join(tmp, "bin-"))
-  const log = join(dir, "argv")
   writeFileSync(
     join(dir, "node"),
     `#!/bin/sh
-printf '%s\\n' "$#" > ${JSON.stringify(log)}
 for a in "$@"; do
   if [ \${#a} -gt 1000 ]; then kill -9 $$; fi
 done
@@ -72,7 +70,7 @@ exec ${JSON.stringify(process.execPath)} "$@"
 `,
   )
   chmodSync(join(dir, "node"), 0o755)
-  return { dir, argc: () => Number(readFileSync(log, "utf8").trim()) }
+  return { dir }
 }
 
 function run(args, { socket, path, stdin } = {}) {
@@ -108,28 +106,47 @@ const bigPrompt = [
 ].join("\n")
 
 describe("ctrl launcher", () => {
-  test("a long inline --prompt with special characters reaches the app intact", async () => {
+  test("a CLI killed before it answers still replies in JSON, and points long values to stdin", async () => {
     const app = await fakeApp(() => ({ ok: true, data: { id: "ses_new" } }))
     const node = strictNode()
-    const res = await run(["session", "new", "--space", "self", "--title", "t", "--prompt", bigPrompt], {
-      socket: app.path,
-      path: node.dir,
-    })
+    const res = await run(["session", "new", "--space", "self", "--prompt", bigPrompt], { socket: app.path, path: node.dir })
     await app.close()
-    assert.equal(res.signal, null, "the CLI was killed")
-    assert.equal(res.code, 0, res.stdout)
-    assert.deepEqual(res.json, { ok: true, data: { id: "ses_new" } })
-    assert.equal(app.requests[0].command, "session new")
-    assert.deepEqual(app.requests[0].args, { space: "self", title: "t", prompt: bigPrompt })
-    assert.equal(node.argc(), 1, "node should only get the script, the arguments go through the environment")
+    assert.equal(res.code, 1, res.stdout)
+    assert.equal(res.json.ok, false)
+    assert.equal(res.json.error.code, "INTERNAL")
+    assert.match(res.json.error.message, /killed \(signal 9\)/)
+    assert.match(res.json.error.hint, /--prompt - < prompt.md/)
+    assert.equal(app.requests.length, 0)
   })
 
-  test("--prompt - reads stdin", async () => {
-    const app = await fakeApp(() => ({ ok: true, data: {} }))
-    const res = await run(["session", "new", "--prompt", "-"], { socket: app.path, stdin: bigPrompt + "\n" })
+  test("a killed CLI with short arguments gets a generic hint", async () => {
+    const dir = mkdtempSync(join(tmp, "bin-"))
+    writeFileSync(join(dir, "node"), "#!/bin/sh\nkill -TERM $$\n")
+    chmodSync(join(dir, "node"), 0o755)
+    const res = await run(["app", "status"], { path: dir })
+    assert.equal(res.code, 1, res.stdout)
+    assert.match(res.json.error.message, /signal 15/)
+    assert.doesNotMatch(res.json.error.hint, /stdin/)
+  })
+
+  test("--prompt - gets long text with special characters through intact, even where long arguments get killed", async () => {
+    const app = await fakeApp(() => ({ ok: true, data: { id: "ses_new" } }))
+    const node = strictNode()
+    const res = await run(["session", "new", "--space", "self", "--title", "t", "--prompt", "-"], {
+      socket: app.path,
+      path: node.dir,
+      stdin: bigPrompt + "\n",
+    })
     await app.close()
     assert.equal(res.code, 0, res.stdout)
-    assert.equal(app.requests[0].args.prompt, bigPrompt)
+    assert.deepEqual(res.json, { ok: true, data: { id: "ses_new" } })
+    assert.deepEqual(app.requests[0].args, { space: "self", title: "t", prompt: bigPrompt })
+  })
+
+  test("CLI errors keep their own exit code", async () => {
+    const res = await run(["session", "nope"])
+    assert.equal(res.code, 2)
+    assert.equal(res.json.error.code, "USAGE")
   })
 
   test("empty and repeated arguments keep their order", async () => {

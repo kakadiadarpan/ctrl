@@ -214,7 +214,7 @@ export const COMMANDS: CommandSpec[] = [
         description: "Model, `<provider>/<model>[#<variant>]` (opencode) or `<model>[#<effort>]` (fx)",
       },
       { name: "title", type: "string", description: "Title (opencode: right away; fx: once fx lets go of it)" },
-      { name: "prompt", type: "string", description: "First message, sent right away. `-` reads stdin (best for long or multi-line prompts)" },
+      { name: "prompt", type: "string", description: "First message, sent right away. `-` reads stdin (use it for long or multi-line prompts)" },
       { name: "focus", type: "bool", description: "Put it on screen" },
       { name: "raise", type: "bool", description: "With --focus: also bring ctrl's window to the front" },
     ],
@@ -281,7 +281,7 @@ export const COMMANDS: CommandSpec[] = [
     summary: "Sends a message to a session, as if you typed it",
     args: [
       session(),
-      { name: "text", type: "string", required: true, description: "Message. `-` reads stdin" },
+      { name: "text", type: "string", required: true, description: "Message. `-` reads stdin (use it for long or multi-line text)" },
       {
         name: "submit",
         type: "bool",

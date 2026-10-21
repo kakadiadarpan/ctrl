@@ -176,8 +176,8 @@ where it lives.
   the fixing command)
 - Selectors: `self` (the calling session, via `OPENCODE_SESSION_ID` or ctrl's `CTRL_TERM_ID` in fx ptys, or
   its space for `--space`), `current`, `name:<title>`; ambiguous names list candidates
-- Long or multi-line inline values (`--prompt "$(cat prompt.md)"`) work: the `ctrl` launcher passes arguments
-  through the environment, since some endpoint security tools kill `node <script> <long argument>` (`bin/ctrl`)
+- A CLI killed before it answers still replies: the launcher prints a JSON error naming the signal, and
+  suggests stdin (`--prompt -`) when an argument was long (`bin/ctrl`)
 - Sessions an agent creates are marked `createdByAgent: {agent, by, at}` (by = the agent's own session, via
   `self`). Agents are detected from the env their harness sets (`AI_AGENT`, `AGENT=1`, `CLAUDECODE`,
   `CURSOR_AGENT`, ctrl's `CTRL_TERM_ID` for fx); ctrl strips those from the terminals it spawns

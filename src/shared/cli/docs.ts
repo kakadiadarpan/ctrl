@@ -54,6 +54,7 @@ export function overviewHelp(version: string) {
     "Machine-readable reference: ctrl help --json · full docs: ctrl docs · one command: ctrl help <noun> <verb>",
     "Sessions: an id (ses_… / fx:…), `self` (the session you run in), `current` (on screen) or `name:<title>`.",
     "Spaces: an id (spc_…), `self` (the space of the session you run in), `current` (the space on screen) or `name:<name>`.",
+    "Long or multi-line text goes on stdin: a value of `-` reads it, e.g. --prompt - < prompt.md.",
     "",
   ]
   let noun = ""

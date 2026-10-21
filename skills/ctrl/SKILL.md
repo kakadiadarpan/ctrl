@@ -63,6 +63,7 @@ Don't guess flags: read `help` first. The most used ones:
   command: mention it to the user ("you can undo this with …") or run it if they ask.
 - Run it through `ctrl.sh`, or with `AI_AGENT=<your name>` set, so sessions you create are marked as made
   by an agent (opencode sets `AI_AGENT` for you).
+- Pass long or multi-line text on stdin, not inline: `--prompt - < prompt.md`, `--text - <<'EOF'`.
 - Use `--fields id,title` on lists to keep output small.
 - To check a prompt was taken (`session new --prompt`, `session send`), look for status `running`, then
   `session wait <s> --for done`. fx only logs a turn once it ends, so `session read` shows an fx turn in

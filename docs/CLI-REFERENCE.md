@@ -172,7 +172,7 @@ ctrl session new [--space <space>] [--harness opencode|fx] [--directory <directo
 | `--directory <directory>` | Folder to start in (default: the space's folder, else ~) |
 | `--model <model>` | Model, `<provider>/<model>[#<variant>]` (opencode) or `<model>[#<effort>]` (fx) |
 | `--title <title>` | Title (opencode: right away; fx: once fx lets go of it) |
-| `--prompt <prompt>` | First message, sent right away. `-` reads stdin (best for long or multi-line prompts) |
+| `--prompt <prompt>` | First message, sent right away. `-` reads stdin (use it for long or multi-line prompts) |
 | `--focus / --no-focus` | Put it on screen |
 | `--raise / --no-raise` | With --focus: also bring ctrl's window to the front |
 
@@ -277,7 +277,7 @@ ctrl session send <session> --text <text> [--submit] [--focus]
 | Argument | Meaning |
 |---|---|
 | `<session>` | Session: id, `self`, `current` or `name:<title>` · required |
-| `--text <text>` | Message. `-` reads stdin · required |
+| `--text <text>` | Message. `-` reads stdin (use it for long or multi-line text) · required |
 | `--submit / --no-submit` | --no-submit only types it into the session's prompt (see harness notes) · default: true |
 | `--focus / --no-focus` | Put the session on screen first |
 
