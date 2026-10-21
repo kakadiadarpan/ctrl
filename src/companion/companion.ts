@@ -157,9 +157,12 @@ export class Companion {
         exact: m.resource_id === first,
       })
     }
-    const sessions = [...rows.values()]
-      .sort((a, b) => Number(a.archived) - Number(b.archived) || Number(b.exact) - Number(a.exact) || b.last - a.last)
-      .slice(0, MAX_ROWS)
+    // Archived ones have their own budget: they're folded by default and shouldn't crowd out live ones.
+    const sorted = [...rows.values()].sort((a, b) => Number(b.exact) - Number(a.exact) || b.last - a.last)
+    const sessions = [
+      ...sorted.filter((s) => !s.archived).slice(0, MAX_ROWS),
+      ...sorted.filter((s) => s.archived).slice(0, MAX_ROWS),
+    ]
     // Groups in order of their best session; Recents and Archived after the spaces, like the sidebar.
     const groups = new Map<string, CompanionGroup>()
     for (const s of sessions) {

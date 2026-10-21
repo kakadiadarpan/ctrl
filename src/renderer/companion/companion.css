@@ -69,9 +69,25 @@ body {
   margin-top: 6px;
 }
 
-/* Group headings aren't clickable, unlike the sidebar's space headers. */
-.companion-space:hover {
+/* Group headings aren't clickable, unlike the sidebar's space headers (except Archived, which folds). */
+.companion-space:not(.foldable):hover {
   background: none;
+}
+
+.companion-chevron {
+  display: inline-flex;
+  color: var(--muted);
+  transition: transform 0.12s;
+}
+
+.companion-chevron .icon {
+  width: 12px;
+  height: 12px;
+  color: inherit;
+}
+
+.companion-chevron.open {
+  transform: rotate(90deg);
 }
 
 .companion-group.recents .companion-space,

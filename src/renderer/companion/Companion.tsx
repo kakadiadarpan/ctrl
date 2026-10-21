@@ -66,15 +66,27 @@ export function Companion() {
 }
 
 function Group({ group }: { group: CompanionGroup }) {
+  // Archived is folded until you open it (kept while the window lives).
+  const foldable = group.kind === "archived"
+  const [open, setOpen] = useState(!foldable)
   return (
     <div className={`companion-group ${group.kind}`}>
-      <div className="row space-header companion-space">
-        <Icon name={group.kind === "space" ? "folder-open" : group.kind === "archived" ? "archive" : "compose"} />
-        <span className="label">{group.name}</span>
-      </div>
-      {group.sessions.map((s) => (
-        <Row key={s.id} session={s} />
-      ))}
+      {foldable ? (
+        <button className="row space-header companion-space foldable" onClick={() => setOpen((o) => !o)}>
+          <Icon name="archive" />
+          <span className="label">{group.name}</span>
+          <span className="meta">{group.sessions.length}</span>
+          <span className={`companion-chevron ${open ? "open" : ""}`}>
+            <Icon name="chevron-right" />
+          </span>
+        </button>
+      ) : (
+        <div className="row space-header companion-space">
+          <Icon name={group.kind === "space" ? "folder-open" : "compose"} />
+          <span className="label">{group.name}</span>
+        </div>
+      )}
+      {open && group.sessions.map((s) => <Row key={s.id} session={s} />)}
     </div>
   )
 }
