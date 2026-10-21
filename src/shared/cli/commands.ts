@@ -51,7 +51,10 @@ const session = (description = "Session: id, `self`, `current` or `name:<title>`
   description,
 })
 
-const space = (description = "Space: id, `name:<name>` or `current` (the space of the session on screen)"): ArgSpec => ({
+/** What every space argument accepts (resolveSpace in cli-handlers.ts). */
+const SPACES = "id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen)"
+
+const space = (description = `Space: ${SPACES}`): ArgSpec => ({
   name: "space",
   type: "string",
   positional: true,
@@ -162,7 +165,7 @@ export const COMMANDS: CommandSpec[] = [
       {
         name: "space",
         type: "string",
-        description: "Only sessions in this space (id, `name:<name>`, `current`), or `none` for sessions in no space",
+        description: `Only sessions in this space (${SPACES}), or \`none\` for sessions in no space`,
       },
       { name: "archived", type: "bool", description: "Only archived sessions" },
       { name: "all", type: "bool", description: "Archived sessions too" },
@@ -195,12 +198,13 @@ export const COMMANDS: CommandSpec[] = [
     details: [
       "Created in the background: the screen doesn't change unless --focus.",
       "Flags override the space's settings for this session only.",
+      "Replies within 12s: if the harness is stuck, a TIMEOUT error says whether the session was created and what to run next.",
     ],
     args: [
       {
         name: "space",
         type: "string",
-        description: "Space to start it in (id, `name:<name>`, `current`); omitted = no space",
+        description: `Space to start it in (${SPACES}); omitted = no space`,
       },
       harnessArg,
       { name: "directory", type: "string", description: "Folder to start in (default: the space's folder, else ~)" },
@@ -210,17 +214,18 @@ export const COMMANDS: CommandSpec[] = [
         description: "Model, `<provider>/<model>[#<variant>]` (opencode) or `<model>[#<effort>]` (fx)",
       },
       { name: "title", type: "string", description: "Title (opencode: right away; fx: once fx lets go of it)" },
-      { name: "prompt", type: "string", description: "First message, sent right away. `-` reads stdin" },
+      { name: "prompt", type: "string", description: "First message, sent right away. `-` reads stdin (best for long or multi-line prompts)" },
       { name: "focus", type: "bool", description: "Put it on screen" },
       { name: "raise", type: "bool", description: "With --focus: also bring ctrl's window to the front" },
     ],
     returns: "Session",
     harness: [
-      "fx: fx only reports a new session's id once its process is up; `new` waits for it (up to 15s). If it doesn't come, `data` is {pending:true, terminal} and the session shows up in `session list` later.",
+      "fx: fx only reports a new session's id once its process is up; `new` waits for it (within its 12s budget). If it doesn't come, `data` is {pending:true, terminal} and the session shows up in `session list` later.",
       "fx: --prompt is typed into the fx prompt and submitted; the reply has `status: running` once the turn started. To know it's over, `ctrl session wait <id> --for done`. fx writes a turn to its log only when it ends, so until then `session read` shows it as `Turn N · running`.",
     ],
     examples: [
       'ctrl session new --space name:reviews --title "Review #42" --prompt "Review PR #42"',
+      "ctrl session new --space self --title \"Follow-up\" --prompt - < prompt.md",
       "ctrl session new --focus --raise",
     ],
     mutates: true,
@@ -251,7 +256,7 @@ export const COMMANDS: CommandSpec[] = [
         name: "space",
         type: "string",
         required: true,
-        description: "Target space (id, `name:<name>`, `current`), or `none`",
+        description: `Target space (${SPACES}), or \`none\``,
       },
     ],
     returns: "Session & {changed}",
@@ -588,7 +593,7 @@ export const COMMANDS: CommandSpec[] = [
     ],
     args: [
       { name: "session", type: "string", list: true, description: "Sessions (repeatable; default `current`)" },
-      { name: "space", type: "string", description: "Every session in this space instead" },
+      { name: "space", type: "string", description: `Every session in this space instead (${SPACES})` },
       { name: "type", type: "string", list: true, description: "Only these link types, e.g. github-pr (repeatable)" },
       { name: "limit", type: "int", default: 100, description: "Max items (max 500)" },
       { name: "cached", type: "bool", description: "Don't fetch: cached live details only, instant" },
@@ -611,7 +616,7 @@ export const COMMANDS: CommandSpec[] = [
     args: [
       { name: "resource", type: "string", positional: true, list: true, placeholder: "[<id|url>...]", description: "Resources to refetch (default: the scope below)" },
       { name: "session", type: "string", list: true, description: "Without ids: these sessions' resources (repeatable; default `current`)" },
-      { name: "space", type: "string", description: "Without ids: every session in this space instead" },
+      { name: "space", type: "string", description: `Without ids: every session in this space instead (${SPACES})` },
       { name: "type", type: "string", list: true, description: "Only these link types (repeatable)" },
       { name: "limit", type: "int", default: 100, description: "Max items (max 500)" },
       { name: "wait", type: "int", default: 10000, description: "Most ms to wait (max 60000; raise --timeout past it)" },

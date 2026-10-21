@@ -53,6 +53,7 @@ export function overviewHelp(version: string) {
     "Every reply is one JSON object on stdout: {\"ok\":true,\"data\":…} or {\"ok\":false,\"error\":{code,message,hint?,candidates?}}.",
     "Machine-readable reference: ctrl help --json · full docs: ctrl docs · one command: ctrl help <noun> <verb>",
     "Sessions: an id (ses_… / fx:…), `self` (the session you run in), `current` (on screen) or `name:<title>`.",
+    "Spaces: an id (spc_…), `self` (the space of the session you run in), `current` (the space on screen) or `name:<name>`.",
     "",
   ]
   let noun = ""

@@ -41,7 +41,7 @@ Don't guess flags: read `help` first. The most used ones:
 | Command | Does |
 |---|---|
 | `session list [--space <s>] [--status needs-input]` | find sessions |
-| `session new [--space <s>] [--title t] [--prompt p] [--focus]` | start one (background unless `--focus`) |
+| `session new [--space <s>] [--title t] [--prompt p\|-] [--focus]` | start one (background unless `--focus`; `--prompt -` reads stdin) |
 | `session wait <s> --for done` | block until its turn is over |
 | `session read <s>` | digest of another session's context |
 | `session reference <src> --into <dst> [--text t] [--submit]` | reference one session in another |

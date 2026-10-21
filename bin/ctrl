@@ -7,12 +7,21 @@ while [ -L "$self" ]; do
   case $link in /*) self=$link ;; *) self=$(dirname "$self")/$link ;; esac
 done
 dir=$(cd "$(dirname "$self")" && pwd)
+# The arguments go to cli.cjs through the environment, not node's argv: some endpoint security
+# tools SIGKILL `node <script> <long argument>` before it runs, so a long `--prompt "…"` died
+# silently with no reply (docs/CLI.md → How it works).
+i=0
+for arg in "$@"; do
+  export "CTRL_ARG_$i=$arg"
+  i=$((i + 1))
+done
+export CTRL_ARGC=$i
 if command -v node >/dev/null 2>&1; then
-  exec node "$dir/cli.cjs" "$@"
+  exec node "$dir/cli.cjs"
 fi
 for app in "$dir/../../MacOS/ctrl" /Applications/ctrl.app/Contents/MacOS/ctrl; do
   if [ -x "$app" ]; then
-    ELECTRON_RUN_AS_NODE=1 exec "$app" "$dir/cli.cjs" "$@"
+    ELECTRON_RUN_AS_NODE=1 exec "$app" "$dir/cli.cjs"
   fi
 done
 echo '{"ok":false,"error":{"code":"INTERNAL","message":"ctrl CLI needs node, or ctrl.app in /Applications"}}'
