@@ -111,7 +111,7 @@ where it lives.
 
 ## Companion (experimental)
 
-- Always-on-top window, off by default (Settings → Companion, or `ctrl settings set companion true`), that
+- Always-on-top window, off by default and marked Experimental (last section of Settings, or `ctrl settings set companion true`), that
   lists the sessions that mentioned what's on screen, laid out like the sidebar (Spaces with a folder per space,
   then Recents, open by default, and Archived, folded, both foldable) with the same rows (fx tag, status, age) and colors, newest first: the PR, issue or page in the browser tab
   (Chrome, Arc, Brave, Edge, Dia, Vivaldi, Safari), the Slack thread (side panel, or the one under the pointer
