@@ -50,11 +50,12 @@ export function Companion() {
             {ctx.label && <div className="companion-label">{ctx.label}</div>}
           </div>
           <button
-            className="btn primary companion-new"
+            className="btn companion-new"
             title={[ctx.label ? `New session about ${ctx.label}` : "New session", view?.shortcut].filter(Boolean).join("  ")}
             onClick={() => window.companion.newSession()}
           >
-            New session
+            <Icon name="plus" />
+            New
           </button>
         </div>
       )}

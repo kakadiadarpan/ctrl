@@ -67,9 +67,35 @@ body {
   white-space: nowrap;
 }
 
-.companion-new {
-  padding: 3px 9px;
+/* Stands out from the context row without the glare of a primary button. */
+.companion .companion-new {
+  --new-bg: rgba(0, 0, 0, 0.08);
+  --new-bg-hover: rgba(0, 0, 0, 0.13);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px 3px 7px;
   font-size: 12px;
+  border: none;
+  background: var(--new-bg);
+  color: var(--text);
+}
+
+.companion .companion-new:hover {
+  background: var(--new-bg-hover);
+}
+
+.companion .companion-new .icon {
+  width: 13px;
+  height: 13px;
+  color: inherit;
+}
+
+@media (prefers-color-scheme: dark) {
+  .companion .companion-new {
+    --new-bg: rgba(255, 255, 255, 0.14);
+    --new-bg-hover: rgba(255, 255, 255, 0.2);
+  }
 }
 
 .companion-access {
