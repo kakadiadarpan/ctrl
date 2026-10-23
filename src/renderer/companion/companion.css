@@ -37,8 +37,12 @@ body {
   min-width: 0;
 }
 
-.companion-close {
+.companion-new {
   margin-left: auto;
+  -webkit-app-region: no-drag;
+}
+
+.companion-close {
   opacity: 0;
   -webkit-app-region: no-drag;
 }

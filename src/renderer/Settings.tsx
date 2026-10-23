@@ -768,17 +768,19 @@ export function Settings({
           </div>
         </div>
 
-        <h2>Companion</h2>
+        <h2>ctrl Companion</h2>
         <div className="settings-card">
           <div className="setting">
             <div>
               <div className="setting-title">
-                Companion window <span className="pill">Experimental</span>
+                ctrl Companion <span className="pill">Experimental</span>
               </div>
               <div className="setting-desc">
                 A small window that stays on top and lists the sessions that mentioned what you're looking at: the PR
-                or issue in your browser, the Slack thread or channel, the Notion page. Reading Slack,
-                Notion and Linear needs Accessibility access, browsers ask for permission to read their tab.
+                or issue in your browser, the Slack thread or channel, the Notion page. Its + button, or{" "}
+                {shortcutLabel("companion-new-session", settings.shortcuts) || "its shortcut"} from any app, starts a
+                new session with that link typed in. Reading Slack, Notion and Linear needs Accessibility access,
+                browsers ask for permission to read their tab.
               </div>
             </div>
             <Toggle on={settings.companion} onChange={(companion) => void window.ctrl.setSettings({ companion })} />

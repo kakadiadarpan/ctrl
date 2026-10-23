@@ -9,8 +9,16 @@ export type CommandID =
   | "zoom-in"
   | "zoom-out"
   | "zoom-reset"
+  | "companion-new-session"
 
-export type Command = { id: CommandID; label: string; desc?: string; defaults: string[] }
+export type Command = {
+  id: CommandID
+  label: string
+  desc?: string
+  defaults: string[]
+  /** Works from any app (a global shortcut), not only while ctrl is focused */
+  global?: boolean
+}
 
 export const COMMANDS: Command[] = [
   { id: "palette", label: "Search", defaults: ["Cmd+P", "Cmd+K"] },
@@ -33,6 +41,13 @@ export const COMMANDS: Command[] = [
   { id: "zoom-in", label: "Larger text", defaults: ["Cmd+=", "Cmd++"] },
   { id: "zoom-out", label: "Smaller text", defaults: ["Cmd+-"] },
   { id: "zoom-reset", label: "Reset text size", defaults: ["Cmd+0"] },
+  {
+    id: "companion-new-session",
+    label: "New session from screen",
+    desc: "From any app while the ctrl Companion is on, with what's on screen typed in",
+    defaults: ["Ctrl+Alt+Cmd+Space"],
+    global: true,
+  },
 ]
 
 /** commandID → its bindings; an empty list disables the command. Missing = defaults. */

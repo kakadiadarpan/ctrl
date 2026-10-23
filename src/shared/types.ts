@@ -155,7 +155,7 @@ export type Settings = {
   shortcuts: ShortcutOverrides
   /** Per resource adapter id; adapters not listed use defaultAdapterMode */
   adapterModes: Record<string, AdapterMode>
-  /** Always-on-top window with the sessions that mentioned what's on screen (src/companion), macOS only */
+  /** ctrl Companion: always-on-top window with the sessions that mentioned what's on screen (src/companion), macOS only */
   companion: boolean
 }
 

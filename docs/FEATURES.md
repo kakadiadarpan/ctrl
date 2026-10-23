@@ -116,7 +116,7 @@ where it lives.
     the reference. A session never lists itself.
     `ctrl resources list` returns them as type `session` with the referenced session (or `null` once deleted)
 
-## Companion (experimental)
+## ctrl Companion (experimental)
 
 - Always-on-top window, off by default and marked Experimental (last section of Settings, or `ctrl settings set companion true`), that
   lists the sessions that mentioned what's on screen, laid out like the sidebar (Spaces with a folder per space,
@@ -126,6 +126,10 @@ where it lives.
   mentioned threads in it (marked with #). Click a row to open it in ctrl. Draggable, sized to its content,
   remembers its position, stays on every Space; clicking it doesn't take focus from the app you're in. ×
   turns it off (`src/companion/`, `src/renderer/companion/`)
+- New session from screen: the window's + button, or ⌃⌥⌘Space from any app (a global shortcut, registered only
+  while the companion is on, rebindable in Settings → Shortcuts), brings ctrl forward on a new chat with the link
+  on screen typed in, not sent (the first link ctrl recognizes, else the first one). opencode: its new-session
+  screen; fx: a new session, typed in once fx is ready (`newSessionWith()` in `src/main/main.ts`)
 - Reading the screen goes through a small native helper, `ctrl-context`, ported from Orchid: AppleScript for
   browser tabs, the Accessibility tree for Slack, Notion and Linear. Without Accessibility access the window
   offers a button to grant it (`src/companion/native/context.swift`)

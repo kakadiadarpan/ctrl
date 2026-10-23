@@ -25,7 +25,7 @@ import {
   type Toast,
   type UiState,
 } from "../shared/types"
-import { accelFromInput, commandFor, type CommandID } from "../shared/shortcuts"
+import { accelFromInput, bindings, commandFor, type CommandID } from "../shared/shortcuts"
 import { Attention } from "./attention"
 import { setChildEnv } from "./child-env"
 import { createHandlers, type CliHost } from "./cli-handlers"
@@ -318,13 +318,14 @@ const companion = new Companion({
   },
   sessionsMentioning: (ids, prefixes) => search.sessionsMentioning(ids, prefixes),
   open: (id) => {
-    if (win && !win.isDestroyed()) {
-      if (win.isMinimized()) win.restore()
-      win.show()
-      app.focus({ steal: true })
-    }
+    raiseWindow()
     openSession(id)
   },
+  newSession: (text) => {
+    raiseWindow()
+    void newSessionWith(text).catch(report)
+  },
+  shortcuts: () => bindings("companion-new-session", store.data.settings.shortcuts),
   disable: () => applySettings({ companion: false }),
 })
 
@@ -531,6 +532,7 @@ const applySettings = (patch: Partial<Settings>) => {
     send("resources:changed", null)
   }
   if (patch.companion !== undefined && !headless) companion.setEnabled(patch.companion)
+  if (patch.shortcuts && !headless) companion.updateShortcuts()
   loadThemes()
   applyTheme()
 }
@@ -656,6 +658,36 @@ const newSessionHere = () => {
   const current = sessionByID(currentSessionID() ?? "")
   if (!current) return newSession(null)
   return newSession(store.data.assignments[current.id] ?? null, current.directory, current.harness)
+}
+
+/** Brings ctrl's main window forward, from another app (the companion). */
+const raiseWindow = () => {
+  if (!win || win.isDestroyed()) return
+  if (win.isMinimized()) win.restore()
+  win.show()
+  app.focus({ steal: true })
+}
+
+/**
+ * A new chat (home folder, no space) with `text` typed in, not sent. opencode: its new-session screen,
+ * so nothing is created until you send. fx: a new session, typed in once fx is ready.
+ */
+const newSessionWith = async (text: string) => {
+  const prompt = text ? `${text} ` : ""
+  if (harnessFor() === "opencode" && opencodeStarted) {
+    showOpencodeTerm()
+    if (prompt) terminal.prefill(prompt)
+    else terminal.home()
+    push()
+  } else {
+    const created = await newSession(null)
+    if (prompt && "pending" in created) {
+      await fxTerms.ready(created.terminal)
+      await typeIntoFx(created.terminal, prompt, false)
+    }
+  }
+  // Out of Settings or the palette, onto the prompt.
+  send("shortcut", "companion-new-session")
 }
 
 /** New session under this one, in its space, folder and harness. */
@@ -1029,6 +1061,7 @@ const runCommand = (id: CommandID) => {
     return
   }
   if (id === "new-session-here") void newSessionHere().catch(report)
+  if (id === "companion-new-session") return companion.newSession()
   if (id === "toggle-resources") {
     store.setUi({ resourcesOpen: !store.data.ui.resourcesOpen })
     push()
@@ -1124,6 +1157,7 @@ function registerIpc() {
   ipcMain.handle("mcp:reconnect", (_e, name: string) => opencode.reconnectMcp(name).catch(report))
   ipcMain.handle("shortcut:record", (_e, on: boolean) => {
     recordingShortcut = on
+    if (!headless) companion.pauseShortcuts(on)
   })
   ipcMain.handle("space:toggle", (_e, id: string) => {
     store.updateSpace(id, { collapsed: !store.space(id)?.collapsed })
