@@ -192,6 +192,7 @@ function fakeHost(overrides = {}) {
     assignments: { ses_me: "spc_mine" },
     archived: {},
     createdByAgent: {},
+    parents: {},
     spaces: [{ id: "spc_mine", name: "Mine" }],
     settings: { defaultHarness: "opencode" },
   }
@@ -202,6 +203,15 @@ function fakeHost(overrides = {}) {
       data,
       space: (id) => data.spaces.find((s) => s.id === id),
       setCreatedByAgent: () => {},
+      isAncestor: (ancestor, id) => {
+        for (let cur = id; cur; cur = data.parents[cur]) if (cur === ancestor) return true
+        return false
+      },
+      setParent: (id, parent) => {
+        if (parent) data.parents[id] = parent
+        else delete data.parents[id]
+        return true
+      },
     },
     sessions: () => sessions,
     currentSessionID: () => null,
@@ -214,8 +224,14 @@ function fakeHost(overrides = {}) {
       host.calls.push(["newSession", opts])
       const id = "ses_new"
       if (opts.spaceID) data.assignments[id] = opts.spaceID
+      if (opts.parentID) data.parents[id] = opts.parentID
       sessions.push({ id, harness: "opencode", title: "", directory: "/", status: "idle", updated: 1 })
       return { id }
+    },
+    move: (id, spaceID) => {
+      host.calls.push(["move", id, spaceID])
+      if (spaceID) data.assignments[id] = spaceID
+      else delete data.assignments[id]
     },
     renameSession: async (id, title) => void (sessions.find((s) => s.id === id).title = title),
     prompt: async (id) => {
@@ -265,5 +281,58 @@ describe("session new handler", () => {
   test("a rename that never finishes times out too", async () => {
     const handlers = createHandlers(fakeHost({ renameSession: never }), { sessionNewBudget: 300 })
     await assert.rejects(handlers["session new"](...req({ title: "t" })), { code: "TIMEOUT" })
+  })
+})
+
+describe("child sessions", () => {
+  const me = { id: "ses_me", harness: "fx", title: "me", directory: "/me", status: "idle", updated: 1 }
+
+  test("session new from a session starts a child in its space, folder and harness", async () => {
+    const host = fakeHost()
+    host.sessions().push({ ...me })
+    const out = await createHandlers(host)["session new"](...req({ title: "t" }))
+    const opts = host.calls[0][1]
+    assert.equal(opts.parentID, "ses_me")
+    assert.equal(opts.spaceID, "spc_mine")
+    assert.equal(opts.directory, "/me")
+    assert.equal(opts.harness, "fx")
+    assert.equal(out.parentID, "ses_me")
+  })
+
+  test("--parent none starts a top-level session in no space", async () => {
+    const host = fakeHost()
+    host.sessions().push({ ...me })
+    const out = await createHandlers(host)["session new"](...req({ parent: "none" }))
+    assert.equal(host.calls[0][1].parentID, null)
+    assert.equal(host.calls[0][1].spaceID, null)
+    assert.equal(out.parentID, null)
+  })
+
+  test("--space keeps the parent but uses the space's settings", async () => {
+    const host = fakeHost()
+    host.sessions().push({ ...me })
+    host.store.data.spaces.push({ id: "spc_other", name: "Other" })
+    await createHandlers(host)["session new"](...req({ space: "spc_other" }))
+    const opts = host.calls[0][1]
+    assert.equal(opts.parentID, "ses_me")
+    assert.equal(opts.spaceID, "spc_other")
+    assert.equal(opts.directory, undefined)
+  })
+
+  test("session move --parent nests it, joins the parent's space, and refuses cycles", async () => {
+    const host = fakeHost()
+    host.sessions().push({ ...me }, { ...me, id: "ses_kid", title: "kid" })
+    const handlers = createHandlers(host)
+    const move = (args) => handlers["session move"](args, { v: 1, command: "session move", args, caller: {} }, {})
+    const out = await move({ session: "ses_kid", parent: "ses_me" })
+    assert.equal(out.parentID, "ses_me")
+    assert.equal(out.spaceID, "spc_mine")
+    assert.equal(out.changed, true)
+    assert.deepEqual(handlers["session get"]({ session: "ses_me" }, { caller: {} }).children, ["ses_kid"])
+    await assert.rejects(async () => move({ session: "ses_me", parent: "ses_kid" }), { code: "CONFLICT" })
+    await assert.rejects(async () => move({ session: "ses_me" }), { code: "USAGE" })
+    const detached = await move({ session: "ses_kid", parent: "none" })
+    assert.equal(detached.parentID, null)
+    assert.equal(detached.spaceID, "spc_mine")
   })
 })

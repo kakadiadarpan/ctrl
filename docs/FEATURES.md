@@ -64,6 +64,13 @@ where it lives.
 - **Recents**: every non-archived session, newest first, 10 at a time with Show more, foldable (state saved)
 - **Created by an agent**: sessions an agent makes with `ctrl session new` show a small bot icon, and the
   tooltip names the agent and the session it ran in. Stored in `state.json` (`createdByAgent`), returned by the CLI
+- **Child sessions**: any session can have child sessions, any depth (right-click → New child session: same
+  space, folder and harness). Inside a space, children nest under their parent, with a chevron to fold them
+  (folded parents show their children's most urgent status); siblings are ordered by their subtree's latest
+  activity. Drop a session onto another one in a space to nest it (it joins that space); right-click → Open
+  parent / Detach from parent. A child whose parent is in another space, or archived, stays at the top of its
+  space with a small link icon that names the parent and opens it. Recents and Archived stay flat. Children of
+  a deleted session move up to its parent. Stored in `state.json` (`parents`), returned by the CLI
 - **Archived**: most recently archived first, 10 at a time with Show more, foldable (state saved)
 - Status per row, most urgent first: needs input (permission / question), running, failed (unread),
   finished (unread), otherwise time since last update (`src/renderer/StatusIcon.tsx`). fx: from OSC 7501
@@ -192,6 +199,10 @@ where it lives.
   its space for `--space`), `current`, `name:<title>`; ambiguous names list candidates
 - A CLI killed before it answers still replies: the launcher prints a JSON error naming the signal, and
   suggests stdin (`--prompt -`) when an argument was long (`bin/ctrl`)
+- Child sessions: `session new` run from a session makes a child of it by default (`--parent self`, in the
+  parent's space, folder and harness unless flags say otherwise; `--parent none` for a top-level one);
+  `session move --parent <s|none>` nests or detaches (refuses cycles); `session list --parent <s>`; sessions
+  carry `parentID` and `children`. The ctrl instruction and skill tell agents about the default
 - Sessions an agent creates are marked `createdByAgent: {agent, by, at}` (by = the agent's own session, via
   `self`). Agents are detected from the env their harness sets (`AI_AGENT`, `AGENT=1`, `CLAUDECODE`,
   `CURSOR_AGENT`, ctrl's `CTRL_TERM_ID` for fx); ctrl strips those from the terminals it spawns

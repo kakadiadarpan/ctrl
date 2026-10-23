@@ -152,6 +152,7 @@ const state = (): AppState => ({
   assignments: store.data.assignments,
   archived: store.data.archived,
   createdByAgent: store.data.createdByAgent,
+  parents: store.data.parents,
   ui: store.data.ui,
   settings: store.data.settings,
   themes,
@@ -244,6 +245,7 @@ const fx: FxSessions = new FxSessions({
     const claimed = fxTerms.claim(sessionID, pid)
     if (!claimed) return
     // A session started from a space joins it once fx tells us its id.
+    if (claimed.parentID && !claimed.previous) store.setParent(sessionID, claimed.parentID)
     if (claimed.spaceID && !claimed.previous) store.assign(sessionID, claimed.spaceID)
     // /new or /resume inside a space's session keeps you in that space.
     else if (claimed.previous && store.data.assignments[claimed.previous] && !store.data.assignments[sessionID])
@@ -615,6 +617,8 @@ type NewSessionOptions = {
   focus?: boolean
   /** Overrides the space / app model */
   model?: ModelRef
+  /** Makes it a child session of this one */
+  parentID?: string | null
 }
 
 /** Returns the new session's id, or for fx the terminal that will report it (onOwner). */
@@ -622,7 +626,7 @@ const newSession = async (
   spaceID: string | null,
   directory?: string,
   harness?: Harness,
-  { focus = true, model: modelOverride }: NewSessionOptions = {},
+  { focus = true, model: modelOverride, parentID }: NewSessionOptions = {},
 ): Promise<{ id: string } | { pending: true; terminal: string }> => {
   const space = spaceID ? store.space(spaceID) : undefined
   harness ??= harnessFor(space)
@@ -633,7 +637,7 @@ const newSession = async (
     const args = model ? ["--model", model.id, ...(model.variant ? ["--effort", model.variant] : [])] : []
     if (focus) showFxTerm()
     // The session joins the space once fx reports its id (onOwner).
-    const terminal = fxTerms.create({ cwd, args, env: {}, spaceID }, focus)
+    const terminal = fxTerms.create({ cwd, args, env: {}, spaceID, parentID }, focus)
     push()
     return { pending: true, terminal }
   }
@@ -641,6 +645,7 @@ const newSession = async (
     throw new CliError("HARNESS_MISSING", "opencode isn't installed, so ctrl can't start an opencode session")
   const id = await opencode.createSession(cwd, { model, instructions: space?.instructions, ctrl: ctrlInstructionsOn(spaceID) })
   if (spaceID) store.assign(id, spaceID)
+  if (parentID) store.setParent(id, parentID)
   if (focus) openSession(id)
   else push()
   return { id }
@@ -651,6 +656,13 @@ const newSessionHere = () => {
   const current = sessionByID(currentSessionID() ?? "")
   if (!current) return newSession(null)
   return newSession(store.data.assignments[current.id] ?? null, current.directory, current.harness)
+}
+
+/** New session under this one, in its space, folder and harness. */
+const newChildSession = (parentID: string) => {
+  const parent = sessionByID(parentID)
+  if (!parent) return
+  return newSession(store.data.assignments[parentID] ?? null, parent.directory, parent.harness, { parentID })
 }
 
 // ---------- reopening sessions at launch ----------
@@ -1144,8 +1156,10 @@ function registerIpc() {
     if (!win) return
     const current = store.data.assignments[sessionID] ?? null
     const fxTerm = harnessOf(sessionID) === "fx" ? fxTerms.bySession(sessionID) : undefined
+    const parentID = store.data.parents[sessionID]
     Menu.buildFromTemplate([
       { label: "Open", click: () => openSession(sessionID) },
+      { label: "New child session", click: () => void newChildSession(sessionID)?.catch(report) },
       { label: "Rename", click: () => send("session:rename", sessionID) },
       store.data.archived[sessionID]
         ? { label: "Unarchive", click: () => (store.setArchived([sessionID], false), push()) }
@@ -1162,6 +1176,16 @@ function registerIpc() {
           })),
         ],
       },
+      ...(parentID
+        ? [
+            {
+              label: `Open parent “${sessionByID(parentID)?.title ?? parentID}”`,
+              enabled: !!sessionByID(parentID),
+              click: () => openSession(parentID),
+            },
+            { label: "Detach from parent", click: () => (store.setParent(sessionID, null), push()) },
+          ]
+        : []),
       ...(harnessOf(sessionID) === "fx"
         ? [
             { type: "separator" as const },
@@ -1183,7 +1207,14 @@ function registerIpc() {
     push()
   }
   ipcMain.handle("session:move", (_e, sessionID: string, spaceID: string | null) => move(sessionID, spaceID))
+  ipcMain.handle("session:set-parent", (_e, sessionID: string, parentID: string | null) => {
+    if (!store.setParent(sessionID, parentID)) return
+    // A child lives with its parent: same as `ctrl session move --parent`.
+    if (parentID) move(sessionID, store.data.assignments[parentID] ?? null)
+    else push()
+  })
   ipcMain.handle("session:new", (_e, spaceID: string | null) => newSession(spaceID))
+  ipcMain.handle("session:new-child", (_e, parentID: string) => newChildSession(parentID))
   ipcMain.handle("session:open", (_e, sessionID: string) => openSession(sessionID))
   ipcMain.handle("search", (_e, query: string) => search.search(query))
   ipcMain.handle("resources:list", (_e, sessionIDs: string[]) =>
@@ -1278,7 +1309,8 @@ const cliHost: CliHost = {
     cli: cliInstall.refresh(),
     problem: state().problem,
   }),
-  newSession: ({ spaceID, harness, directory, model, focus }) => newSession(spaceID, directory, harness, { focus, model }),
+  newSession: ({ spaceID, harness, directory, model, focus, parentID }) =>
+    newSession(spaceID, directory, harness, { focus, model, parentID }),
   openSession,
   renameSession,
   move: (id, spaceID) => {

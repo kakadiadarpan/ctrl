@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type HTMLAttributes, type ReactNode } from "react"
 import { shortcutLabel } from "../shared/shortcuts"
-import type { AppState, SessionItem, Space } from "../shared/types"
+import { STATUS_RANK, type AppState, type SessionItem, type Space } from "../shared/types"
 import { Icon } from "./icons"
 import { SESSION_DRAG } from "./ReferenceDrop"
 import { age, shortPath, statusText } from "./format"
@@ -26,12 +26,68 @@ type Props = {
 
 type Reorder = { id: string; pos: "before" | "after" }
 
+/** A sidebar row in a space's session tree. */
+type TreeRow = {
+  session: SessionItem
+  depth: number
+  /** Direct children shown under it (0 = no disclosure toggle) */
+  children: number
+  folded: boolean
+  /** Most urgent of its descendants, when folded */
+  rollup?: SessionItem
+}
+
+/**
+ * Nests sessions under their parent when the parent is in the same list. The rest are roots.
+ * Siblings are ordered by their subtree's latest activity, so an active child lifts its parent.
+ */
+function sessionTree(list: SessionItem[], parents: Record<string, string>, folded: Set<string>): TreeRow[] {
+  const ids = new Set(list.map((s) => s.id))
+  const kids = new Map<string, SessionItem[]>()
+  const roots: SessionItem[] = []
+  for (const s of list) {
+    const parent = parents[s.id]
+    if (parent && parent !== s.id && ids.has(parent)) kids.set(parent, [...(kids.get(parent) ?? []), s])
+    else roots.push(s)
+  }
+  const latest = new Map<string, number>()
+  const descendants = new Map<string, SessionItem[]>()
+  const walk = (s: SessionItem, seen: Set<string>): void => {
+    seen.add(s.id)
+    let max = s.updated
+    const all: SessionItem[] = []
+    for (const c of kids.get(s.id) ?? []) {
+      if (seen.has(c.id)) continue
+      walk(c, seen)
+      max = Math.max(max, latest.get(c.id)!)
+      all.push(c, ...descendants.get(c.id)!)
+    }
+    latest.set(s.id, max)
+    descendants.set(s.id, all)
+  }
+  const seen = new Set<string>()
+  for (const r of roots) walk(r, seen)
+  const byLatest = (a: SessionItem, b: SessionItem) => latest.get(b.id)! - latest.get(a.id)!
+  const rows: TreeRow[] = []
+  const emit = (s: SessionItem, depth: number) => {
+    const children = (kids.get(s.id) ?? []).filter((c) => latest.has(c.id)).sort(byLatest)
+    const isFolded = children.length > 0 && folded.has(s.id)
+    rows.push({ session: s, depth, children: children.length, folded: isFolded, rollup: isFolded ? topStatus(descendants.get(s.id)!) : undefined })
+    if (!isFolded) for (const c of children) emit(c, depth + 1)
+  }
+  for (const r of roots.sort(byLatest)) emit(r, 0)
+  return rows
+}
+
 export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onToggleResources, footer }: Props) {
   const [creating, setCreating] = useState(false)
   const [renamingSpace, setRenamingSpace] = useState<string | null>(null)
   const [renamingSession, setRenamingSession] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [reorder, setReorder] = useState<Reorder | null>(null)
+  /** Session a dragged session would become a child of */
+  const [nestTarget, setNestTarget] = useState<string | null>(null)
+  const draggingSession = useRef<string | null>(null)
   const draggingSpace = useRef<string | null>(null)
   const { width, handle } = useSidebarWidth(state.ui.sidebarWidth)
 
@@ -61,11 +117,56 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
     return { bySpace, recents, archived }
   }, [state.sessions, state.assignments, state.spaces, state.archived])
 
+  const folded = useMemo(() => new Set(state.ui.collapsedSessions ?? []), [state.ui.collapsedSessions])
+
+  const toggleChildren = (id: string) => {
+    const next = new Set(folded)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    void window.ctrl.setUi({ collapsedSessions: [...next] })
+  }
+
   const clearDrag = () => {
     setDropTarget(null)
     setReorder(null)
+    setNestTarget(null)
     draggingSpace.current = null
+    draggingSession.current = null
   }
+
+  /** Whether `id` is `ancestor` or sits somewhere under it. */
+  const isUnder = (id: string, ancestor: string) => {
+    const seen = new Set<string>()
+    for (let cur: string | undefined = id; cur && !seen.has(cur); cur = state.parents[cur]) {
+      if (cur === ancestor) return true
+      seen.add(cur)
+    }
+    return false
+  }
+
+  /** Dropping a session onto another one in a space makes it its child. */
+  const nestDrop = (target: SessionItem): HTMLAttributes<HTMLDivElement> => ({
+    onDragOver: (e) => {
+      const dragged = draggingSession.current
+      if (!dragged || !e.dataTransfer.types.includes(SESSION_DRAG) || isUnder(target.id, dragged)) return
+      e.preventDefault()
+      e.stopPropagation()
+      e.dataTransfer.dropEffect = "move"
+      if (nestTarget !== target.id) setNestTarget(target.id)
+      setDropTarget(null)
+    },
+    onDragLeave: (e) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node)) setNestTarget((t) => (t === target.id ? null : t))
+    },
+    onDrop: (e) => {
+      const id = e.dataTransfer.getData(SESSION_DRAG)
+      if (!id || isUnder(target.id, id)) return
+      e.preventDefault()
+      e.stopPropagation()
+      clearDrag()
+      void window.ctrl.setParent(id, target.id)
+    },
+  })
 
   const sessionDrop = (key: string, spaceID: string | null) => ({
     onDragOver: (e: DragEvent) => {
@@ -125,12 +226,35 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
     return parent ? `Created by ${who} in "${parent.title}"` : `Created by ${who}`
   }
 
-  const sessionRow = (s: SessionItem) =>
-    renamingSession === s.id ? (
+  const sessionLabel = (id: string) => {
+    const p = state.sessions.find((x) => x.id === id)
+    if (!p) return null
+    const spaceID = state.assignments[id]
+    const space = state.spaces.find((x) => x.id === spaceID)
+    return { session: p, where: space ? `in ${space.name}` : "in no space", archived: !!state.archived[id] }
+  }
+
+  const parentText = (s: SessionItem) => {
+    const parentID = state.parents[s.id]
+    const parent = parentID && sessionLabel(parentID)
+    return parent ? `Child of "${parent.session.title}" (${parent.where}${parent.archived ? ", archived" : ""})` : null
+  }
+
+  /**
+   * `tree`: the row's place in a space's tree. Rows in a space whose parent isn't shown above them
+   * (another space, archived) get a link to the parent instead.
+   */
+  const sessionRow = (s: SessionItem, tree?: TreeRow) => {
+    const depth = tree?.depth ?? 0
+    const parentID = state.parents[s.id]
+    const parentLink = tree && depth === 0 && parentID ? sessionLabel(parentID) : null
+    const status = tree?.rollup && STATUS_RANK[tree.rollup.status] > STATUS_RANK[s.status] ? tree.rollup.status : s.status
+    return renamingSession === s.id ? (
       <NameInput
         key={s.id}
         initial={s.title}
         indent
+        depth={depth}
         onDone={(title) => {
           setRenamingSession(null)
           if (title && title !== s.title) void window.ctrl.renameSession(s.id, title)
@@ -140,9 +264,12 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
       <div
         key={s.id}
         data-session-id={s.id}
-        className={`row session ${s.id === state.currentSessionID ? "active" : ""}`}
+        className={`row session ${s.id === state.currentSessionID ? "active" : ""} ${nestTarget === s.id && tree ? "nest-over" : ""}`}
+        style={depth ? { paddingLeft: 35 + depth * CHILD_INDENT } : undefined}
         draggable
+        {...(tree ? nestDrop(s) : {})}
         onDragStart={(e) => {
+          draggingSession.current = s.id
           e.dataTransfer.setData(SESSION_DRAG, s.id)
           // move = into a space, copy = reference it in the terminal
           e.dataTransfer.effectAllowed = "copyMove"
@@ -154,8 +281,37 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
           e.preventDefault()
           void window.ctrl.showSessionMenu(s.id)
         }}
-        title={[statusText(s), s.title, `${s.harness} · ${shortPath(s.directory)}`, agentText(s)].filter(Boolean).join("\n")}
+        title={[statusText(s), s.title, `${s.harness} · ${shortPath(s.directory)}`, parentText(s), agentText(s), tree?.rollup && `${tree.rollup.title}: ${statusText(tree.rollup)}`]
+          .filter(Boolean)
+          .join("\n")}
       >
+        {tree && tree.children > 0 && (
+          <button
+            className="icon-btn tree-toggle"
+            style={{ left: 35 + depth * CHILD_INDENT - 20 }}
+            title={tree.folded ? `Show ${tree.children} child session${tree.children > 1 ? "s" : ""}` : "Hide child sessions"}
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleChildren(s.id)
+            }}
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            <Icon name={tree.folded ? "chevron-right" : "chevron-down"} />
+          </button>
+        )}
+        {parentLink && (
+          <button
+            className="icon-btn parent-link"
+            title={`Child of "${parentLink.session.title}" (${parentLink.where}${parentLink.archived ? ", archived" : ""}). Click to open it`}
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpen(parentLink.session.id)
+            }}
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            <Icon name="corner-up-left" />
+          </button>
+        )}
         {s.harness === "fx" && <span className="harness-tag">fx</span>}
         {state.createdByAgent[s.id] && (
           <span className="agent-tag">
@@ -170,7 +326,7 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
           (state.archived[s.id] && (s.status === "unread" || s.status === "failed")) ? (
           <span className="meta">{age(s.updated)}</span>
         ) : (
-          <StatusIcon status={s.status} />
+          <StatusIcon status={status} />
         )}
         <button
           className="icon-btn row-action"
@@ -184,6 +340,7 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
         </button>
       </div>
     )
+  }
 
   return (
     <aside className="sidebar" style={{ width }}>
@@ -244,6 +401,8 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
               key={space.id}
               space={space}
               sessions={grouped.bySpace.get(space.id) ?? []}
+              parents={state.parents}
+              folded={folded}
               renaming={renamingSpace === space.id}
               onRenamed={() => setRenamingSpace(null)}
               onStartRename={() => setRenamingSpace(space.id)}
@@ -269,7 +428,7 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
             collapsed={state.ui.recentsCollapsed}
             onToggle={() => void window.ctrl.setUi({ recentsCollapsed: !state.ui.recentsCollapsed })}
           >
-            <PagedList items={grouped.recents} render={sessionRow} />
+            <PagedList items={grouped.recents} render={(s) => sessionRow(s)} />
             {grouped.recents.length === 0 && <div className="empty">No sessions yet</div>}
           </FoldSection>
         </div>
@@ -281,7 +440,7 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
             collapsed={state.ui.archivedCollapsed}
             onToggle={() => void window.ctrl.setUi({ archivedCollapsed: !state.ui.archivedCollapsed })}
           >
-            <PagedList items={grouped.archived} render={sessionRow} />
+            <PagedList items={grouped.archived} render={(s) => sessionRow(s)} />
           </FoldSection>
         )}
       </div>
@@ -302,6 +461,9 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
     </aside>
   )
 }
+
+/** px per tree level */
+const CHILD_INDENT = 14
 
 const withShortcut = (label: string, shortcut: string) => (shortcut ? `${label} (${shortcut})` : label)
 
@@ -352,6 +514,8 @@ function FoldSection(props: {
 function SpaceGroup(props: {
   space: Space
   sessions: SessionItem[]
+  parents: Record<string, string>
+  folded: Set<string>
   renaming: boolean
   highlight: boolean
   reorder: "before" | "after" | null
@@ -361,10 +525,14 @@ function SpaceGroup(props: {
   dropProps: HTMLAttributes<HTMLDivElement>
   onDragStart(e: DragEvent): void
   onDragEnd(): void
-  renderSession(s: SessionItem): ReactNode
+  renderSession(s: SessionItem, tree: TreeRow): ReactNode
 }) {
   const { space } = props
   const open = !space.collapsed
+  const rows = useMemo(
+    () => (open ? sessionTree(props.sessions, props.parents, props.folded) : []),
+    [open, props.sessions, props.parents, props.folded],
+  )
   const rollup = open ? undefined : topStatus(props.sessions)
   const classes = ["space", props.highlight && "over", props.reorder && `drop-${props.reorder}`]
   return (
@@ -425,7 +593,7 @@ function SpaceGroup(props: {
       )}
       {open && (
         <div className="space-sessions">
-          {props.sessions.map(props.renderSession)}
+          {rows.map((row) => props.renderSession(row.session, row))}
           {props.sessions.length === 0 && <div className="empty indent">Drag sessions here</div>}
         </div>
       )}
@@ -438,6 +606,7 @@ function NameInput(props: {
   placeholder?: string
   icon?: string
   indent?: boolean
+  depth?: number
   onDone(name: string | null): void
 }) {
   const ref = useRef<HTMLInputElement>(null)
@@ -452,7 +621,10 @@ function NameInput(props: {
     props.onDone(value?.trim() || null)
   }
   return (
-    <div className={`row input-row ${props.indent ? "indent" : ""}`}>
+    <div
+      className={`row input-row ${props.indent ? "indent" : ""}`}
+      style={props.depth ? { paddingLeft: 31 + props.depth * CHILD_INDENT } : undefined}
+    >
       {props.icon && <Icon name={props.icon} />}
       <input
         ref={ref}

@@ -49,6 +49,9 @@ supports: [HARNESSES.md](HARNESSES.md).
   reconnects. After that, events patch it in memory (renames, moves, deletes, views, permissions, questions), or
   re-read only the session they're about (created, run started/ended), so an update costs the same with 50 or
   5,000 sessions.
+- Child sessions are ctrl's own too (`parents` in `state.json`, child → parent), not opencode's `parentID`,
+  which opencode uses for subagents and hides from session lists. The sidebar builds each space's tree from it
+  when the list changes, proportional to that space's sessions.
 - Spaces live in `~/Library/Application Support/ctrl/state.json`. Sessions without a space still show under **Recents**, which lists every non-archived session (foldable, 10 at a time).
 
 ## fx

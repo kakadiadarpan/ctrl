@@ -199,6 +199,37 @@ button {
 
 .row.session {
   padding-left: 35px;
+  position: relative;
+}
+
+/* Child sessions: fold toggle in the indent, left of the label */
+.tree-toggle {
+  position: absolute;
+  top: 4px;
+  width: 18px;
+  opacity: 0.55;
+}
+.row.session:hover .tree-toggle {
+  opacity: 1;
+}
+
+/* Parent in another space (or archived): a link to it instead of nesting */
+.parent-link {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-right: -4px;
+}
+.parent-link .icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* A session dragged here becomes its child */
+.row.session.nest-over {
+  outline: 1.5px solid rgba(59, 130, 246, 0.45);
+  outline-offset: -1.5px;
+  background: rgba(59, 130, 246, 0.07);
 }
 
 .section > .row.session,

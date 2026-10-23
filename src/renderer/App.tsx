@@ -36,6 +36,7 @@ const EMPTY: AppState = {
   spaces: [],
   assignments: {},
   createdByAgent: {},
+  parents: {},
   archived: {},
   sessions: [],
   currentSessionID: null,

@@ -55,6 +55,7 @@ export type CliHost = {
     directory?: string
     model?: ModelRef
     focus: boolean
+    parentID?: string | null
   }): Promise<{ id: string } | { pending: true; terminal: string }>
   openSession(sessionID: string): void
   renameSession(sessionID: string, title: string): Promise<void>
@@ -136,6 +137,8 @@ export function createHandlers(host: CliHost, { sessionNewBudget = SESSION_NEW_B
     spaceID: store.data.assignments[s.id] ?? null,
     archived: store.data.archived[s.id] ?? null,
     createdByAgent: store.data.createdByAgent[s.id] ?? null,
+    parentID: store.data.parents[s.id] ?? null,
+    children: childrenOf(s.id),
     status: s.status,
     ...(s.statusDetail ? { statusDetail: s.statusDetail } : {}),
     updated: s.updated,
@@ -168,6 +171,33 @@ export function createHandlers(host: CliHost, { sessionNewBudget = SESSION_NEW_B
   }
 
   const byID = (id: string) => host.sessions().find((s) => s.id === id)
+
+  // Only child sessions have an entry, so this stays small next to the session list.
+  const childrenOf = (id: string) =>
+    Object.entries(store.data.parents)
+      .filter(([, parent]) => parent === id)
+      .map(([child]) => child)
+
+  /** The session the caller runs in, if ctrl knows it; undefined otherwise (no error). */
+  const selfSession = (caller: CallerContext) => {
+    try {
+      return byID(selfID(caller))
+    } catch {
+      return undefined
+    }
+  }
+
+  /** `none` = no parent. Refuses a parent that is the session itself or one of its children. */
+  const resolveParent = (selector: unknown, caller: CallerContext, child?: string): SessionItem | null => {
+    if (selector === "none") return null
+    const parent = resolveSession(selector, caller)
+    if (child && store.isAncestor(child, parent.id)) {
+      throw new CliError("CONFLICT", parent.id === child ? "A session can't be its own parent" : `${parent.id} is a child of ${child}`, {
+        hint: `Detach it first: ctrl session move ${parent.id} --parent none`,
+      })
+    }
+    return parent
+  }
 
   const selfID = (caller: CallerContext) => {
     const fromTerm = caller.termID ? host.termSession(caller.termID) : undefined
@@ -643,6 +673,10 @@ export function createHandlers(host: CliHost, { sessionNewBudget = SESSION_NEW_B
         const dir = expandPath(args.directory, req.caller).replace(/\/$/, "")
         list = list.filter((s) => s.directory.replace(/\/$/, "") === dir)
       }
+      if (args.parent !== undefined) {
+        const parent = resolveSession(args.parent, req.caller)
+        list = list.filter((s) => store.data.parents[s.id] === parent.id)
+      }
       if (args.archived) list = [...list].sort((a, b) => store.data.archived[b.id] - store.data.archived[a.id])
       const p = page(list, args)
       return { ...p, items: p.items.map(sessionView) }
@@ -653,13 +687,18 @@ export function createHandlers(host: CliHost, { sessionNewBudget = SESSION_NEW_B
       // agent always gets a reply that says what happened, never a silent wait.
       const deadline = Date.now() + sessionNewBudget
       const left = () => Math.max(250, deadline - Date.now())
-      const spaceID = args.space !== undefined ? resolveTargetSpace(args.space, req.caller) : null
+      // From a session, new sessions are its children unless --parent says otherwise.
+      const parent = args.parent !== undefined ? resolveParent(args.parent, req.caller) : (selfSession(req.caller) ?? null)
+      // Without --space, a child starts like the sidebar's New child session: the parent's space, folder and harness.
+      const fromParent = parent && args.space === undefined ? parent : undefined
+      const spaceID =
+        args.space !== undefined ? resolveTargetSpace(args.space, req.caller) : fromParent ? (store.data.assignments[fromParent.id] ?? null) : null
       const space = spaceID ? store.space(spaceID) : undefined
-      const harness: Harness | undefined = args.harness
-      const directory = args.directory ? folder(args.directory, req.caller) : undefined
+      const harness: Harness | undefined = args.harness ?? fromParent?.harness
+      const directory = args.directory ? folder(args.directory, req.caller) : fromParent?.directory
       const model = args.model ? parseModelArg(args.model, harness ?? space?.harness ?? store.data.settings.defaultHarness) : undefined
       const created = await bounded(
-        host.newSession({ spaceID, harness, directory, model, focus: !!args.focus }),
+        host.newSession({ spaceID, harness, directory, model, focus: !!args.focus, parentID: parent?.id ?? null }),
         left(),
         "the harness to create the session",
         "Check the harness: ctrl app status. The session may still show up: ctrl session list --limit 5",
@@ -714,10 +753,28 @@ export function createHandlers(host: CliHost, { sessionNewBudget = SESSION_NEW_B
     },
     "session move": (args, req) => {
       const s = resolveSession(args.session, req.caller)
-      const target = resolveTargetSpace(args.space, req.caller)
-      const changed = (store.data.assignments[s.id] ?? null) !== target || !!store.data.archived[s.id]
-      if (changed) host.move(s.id, target)
-      return { ...sessionView(s), changed }
+      if (args.space === undefined && args.parent === undefined) {
+        throw new CliError("USAGE", "Pass --space, --parent or both", { hint: `ctrl session move ${s.id} --space <space>` })
+      }
+      const parent = args.parent !== undefined ? resolveParent(args.parent, req.caller, s.id) : undefined
+      let parentChanged = false
+      if (parent !== undefined) {
+        parentChanged = (store.data.parents[s.id] ?? null) !== (parent?.id ?? null)
+        if (parentChanged) {
+          store.setParent(s.id, parent?.id ?? null)
+          host.changed()
+        }
+      }
+      // A session moved under a parent joins the parent's space, unless --space says otherwise.
+      const target =
+        args.space !== undefined
+          ? resolveTargetSpace(args.space, req.caller)
+          : parent
+            ? (store.data.assignments[parent.id] ?? null)
+            : (store.data.assignments[s.id] ?? null)
+      const spaceChanged = (store.data.assignments[s.id] ?? null) !== target || !!store.data.archived[s.id]
+      if (spaceChanged) host.move(s.id, target)
+      return { ...sessionView(byID(s.id) ?? s), changed: spaceChanged || parentChanged }
     },
     "session archive": (args, req) => {
       const ids = [...new Set((args.session as string[]).map((sel) => resolveSession(sel, req.caller).id))]
