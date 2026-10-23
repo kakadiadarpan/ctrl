@@ -179,11 +179,16 @@ export const COMMANDS: CommandSpec[] = [
       harnessArg,
       { name: "query", type: "string", description: "Title contains this text (case-insensitive)" },
       { name: "directory", type: "string", description: "Only sessions started in this folder" },
+      { name: "parent", type: "string", description: "Only child sessions of this session (direct children; selectors as for <session>)" },
       limit,
       cursor,
     ],
     returns: "{items:[Session], next:string|null, total:number}",
-    examples: ["ctrl session list --status needs-input --fields id,title,statusDetail", "ctrl session list --space name:reviews"],
+    examples: [
+      "ctrl session list --status needs-input --fields id,title,statusDetail",
+      "ctrl session list --space name:reviews",
+      "ctrl session list --parent self --fields id,title,status",
+    ],
   },
   {
     name: "session get",
@@ -199,15 +204,25 @@ export const COMMANDS: CommandSpec[] = [
       "Created in the background: the screen doesn't change unless --focus.",
       "Flags override the space's settings for this session only.",
       "Replies within 12s: if the harness is stuck, a TIMEOUT error says whether the session was created and what to run next.",
+      "Run from a session, it starts as a child of that session by default (`--parent self`), like the sidebar's New child session: in the parent's space, folder and harness unless flags say otherwise. `--parent none` starts a top-level session.",
     ],
     args: [
       {
         name: "space",
         type: "string",
-        description: `Space to start it in (${SPACES}); omitted = no space`,
+        description: `Space to start it in (${SPACES}); omitted = the parent's space, else no space`,
       },
-      harnessArg,
-      { name: "directory", type: "string", description: "Folder to start in (default: the space's folder, else ~)" },
+      {
+        name: "parent",
+        type: "string",
+        description: "Parent session (selectors as for <session>), or `none`. Default: `self` when run from a session, else none",
+      },
+      { ...harnessArg, description: "Harness (default: the parent's when --space is omitted, else the space's)" },
+      {
+        name: "directory",
+        type: "string",
+        description: "Folder to start in (default: the parent's folder when --space is omitted, else the space's folder, else ~)",
+      },
       {
         name: "model",
         type: "string",
@@ -227,6 +242,7 @@ export const COMMANDS: CommandSpec[] = [
       'ctrl session new --space name:reviews --title "Review #42" --prompt "Review PR #42"',
       "ctrl session new --space self --title \"Follow-up\" --prompt - < prompt.md",
       "ctrl session new --focus --raise",
+      "ctrl session new --parent none --space name:reviews --title \"Unrelated\"",
     ],
     mutates: true,
   },
@@ -248,18 +264,27 @@ export const COMMANDS: CommandSpec[] = [
   },
   {
     name: "session move",
-    summary: "Files a session in a space, or takes it out (`--space none`)",
-    details: ["Unarchives it, like the UI."],
+    summary: "Files a session in a space or under a parent session, or takes it out (`--space none`, `--parent none`)",
+    details: [
+      "Unarchives it, like the UI.",
+      "Pass --space, --parent or both. --parent without --space also moves it into the parent's space; a parent in another space works too (the sidebar shows a link to it instead of nesting).",
+      "A session can't go under itself or one of its own children (CONFLICT).",
+    ],
     args: [
       session(),
       {
         name: "space",
         type: "string",
-        required: true,
         description: `Target space (${SPACES}), or \`none\``,
+      },
+      {
+        name: "parent",
+        type: "string",
+        description: "Parent session (selectors as for <session>), or `none` to make it top-level",
       },
     ],
     returns: "Session & {changed}",
+    examples: ["ctrl session move ses_x --parent self", "ctrl session move ses_x --parent none", "ctrl session move ses_x --space name:reviews"],
     mutates: true,
   },
   {
@@ -713,6 +738,8 @@ export const OBJECTS: Record<string, string> = {
   spaceID: string | null     // null = in no space
   archived: number | null    // archived at (ms); null = not archived
   createdByAgent: {agent: string, by: string | null, at: number} | null   // made by an agent with \`session new\`; by = its own session
+  parentID: string | null    // parent session (child sessions); can be in another space, or deleted
+  children: string[]         // ids of its direct child sessions, archived ones too
   status: "needs-input" | "running" | "failed" | "unread" | "idle"
   statusDetail?: string      // e.g. "Waiting for permission: bash"
   updated: number            // ms

@@ -199,6 +199,69 @@ button {
 
 .row.session {
   padding-left: 35px;
+  position: relative;
+}
+
+/* Child sessions: fold toggle in the indent, left of the label */
+.tree-toggle {
+  position: absolute;
+  top: 4px;
+  width: 18px;
+  opacity: 0.55;
+}
+.row.session:hover .tree-toggle {
+  opacity: 1;
+}
+
+/* Parent in another space (or archived): a link to it instead of nesting */
+.parent-link {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-right: -4px;
+}
+.parent-link .icon {
+  width: 12px;
+  height: 12px;
+}
+
+.parent-tip {
+  position: fixed;
+  z-index: 50;
+  max-width: 260px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--panel-shadow);
+  font-size: 12.5px;
+  pointer-events: none;
+}
+.parent-tip-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+.parent-tip-title {
+  margin: 2px 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.parent-tip-meta {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.row.session.flash {
+  animation: flash 1.2s ease-out;
+}
+
+/* A session dragged here becomes its child */
+.row.session.nest-over {
+  outline: 1.5px solid rgba(59, 130, 246, 0.45);
+  outline-offset: -1.5px;
+  background: rgba(59, 130, 246, 0.07);
 }
 
 .section > .row.session,

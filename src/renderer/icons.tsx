@@ -29,6 +29,7 @@ const paths: Record<string, string> = {
   hash: "M4 9h16M4 15h16M10 3 8 21M16 3l-2 18",
   terminal: "M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM7 10l3 2-3 2M12 15h5",
   bot: "M12 3v4M6 7h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2zM9 12v2M15 12v2",
+  "corner-up-left": "M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5V20",
   triangle: "M12 4 21 20H3z",
   folder: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
   "folder-open": "M3 7a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v1M3 7v10a2 2 0 0 0 2 2h12.5a2 2 0 0 0 1.9-1.4l1.9-5.6A1 1 0 0 0 20.4 10H7.4a2 2 0 0 0-1.9 1.4L3 19",

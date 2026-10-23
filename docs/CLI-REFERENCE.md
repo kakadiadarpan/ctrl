@@ -110,7 +110,7 @@ ctrl app update install
 Sessions, newest first
 
 ```text
-ctrl session list [--space <space>] [--archived] [--all] [--status needs-input|running|failed|unread|idle...] [--harness opencode|fx] [--query <query>] [--directory <directory>] [--limit <n>] [--cursor <cursor>]
+ctrl session list [--space <space>] [--archived] [--all] [--status needs-input|running|failed|unread|idle...] [--harness opencode|fx] [--query <query>] [--directory <directory>] [--parent <parent>] [--limit <n>] [--cursor <cursor>]
 ```
 
 - Archived sessions are left out unless --archived or --all.
@@ -124,6 +124,7 @@ ctrl session list [--space <space>] [--archived] [--all] [--status needs-input|r
 | `--harness opencode\|fx` | Harness |
 | `--query <query>` | Title contains this text (case-insensitive) |
 | `--directory <directory>` | Only sessions started in this folder |
+| `--parent <parent>` | Only child sessions of this session (direct children; selectors as for <session>) |
 | `--limit <n>` | Page size (max 500) · default: 50 |
 | `--cursor <cursor>` | `next` from the previous page |
 
@@ -132,6 +133,7 @@ ctrl session list [--space <space>] [--archived] [--all] [--status needs-input|r
 ```bash
 ctrl session list --status needs-input --fields id,title,statusDetail
 ctrl session list --space name:reviews
+ctrl session list --parent self --fields id,title,status
 ```
 
 ### session get
@@ -158,18 +160,20 @@ ctrl session get current
 Starts a session, like the sidebar's + (space folder, harness, model and instructions apply) *(changes state)*
 
 ```text
-ctrl session new [--space <space>] [--harness opencode|fx] [--directory <directory>] [--model <model>] [--title <title>] [--prompt <prompt>] [--focus] [--raise]
+ctrl session new [--space <space>] [--parent <parent>] [--harness opencode|fx] [--directory <directory>] [--model <model>] [--title <title>] [--prompt <prompt>] [--focus] [--raise]
 ```
 
 - Created in the background: the screen doesn't change unless --focus.
 - Flags override the space's settings for this session only.
 - Replies within 12s: if the harness is stuck, a TIMEOUT error says whether the session was created and what to run next.
+- Run from a session, it starts as a child of that session by default (`--parent self`), like the sidebar's New child session: in the parent's space, folder and harness unless flags say otherwise. `--parent none` starts a top-level session.
 
 | Argument | Meaning |
 |---|---|
-| `--space <space>` | Space to start it in (id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen)); omitted = no space |
-| `--harness opencode\|fx` | Harness |
-| `--directory <directory>` | Folder to start in (default: the space's folder, else ~) |
+| `--space <space>` | Space to start it in (id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen)); omitted = the parent's space, else no space |
+| `--parent <parent>` | Parent session (selectors as for <session>), or `none`. Default: `self` when run from a session, else none |
+| `--harness opencode\|fx` | Harness (default: the parent's when --space is omitted, else the space's) |
+| `--directory <directory>` | Folder to start in (default: the parent's folder when --space is omitted, else the space's folder, else ~) |
 | `--model <model>` | Model, `<provider>/<model>[#<variant>]` (opencode) or `<model>[#<effort>]` (fx) |
 | `--title <title>` | Title (opencode: right away; fx: once fx lets go of it) |
 | `--prompt <prompt>` | First message, sent right away. `-` reads stdin (use it for long or multi-line prompts) |
@@ -185,6 +189,7 @@ ctrl session new [--space <space>] [--harness opencode|fx] [--directory <directo
 ctrl session new --space name:reviews --title "Review #42" --prompt "Review PR #42"
 ctrl session new --space self --title "Follow-up" --prompt - < prompt.md
 ctrl session new --focus --raise
+ctrl session new --parent none --space name:reviews --title "Unrelated"
 ```
 
 ### session focus
@@ -223,20 +228,29 @@ ctrl session rename <session> <title>
 
 ### session move
 
-Files a session in a space, or takes it out (`--space none`) *(changes state)*
+Files a session in a space or under a parent session, or takes it out (`--space none`, `--parent none`) *(changes state)*
 
 ```text
-ctrl session move <session> --space <space>
+ctrl session move <session> [--space <space>] [--parent <parent>]
 ```
 
 - Unarchives it, like the UI.
+- Pass --space, --parent or both. --parent without --space also moves it into the parent's space; a parent in another space works too (the sidebar shows a link to it instead of nesting).
+- A session can't go under itself or one of its own children (CONFLICT).
 
 | Argument | Meaning |
 |---|---|
 | `<session>` | Session: id, `self`, `current` or `name:<title>` · required |
-| `--space <space>` | Target space (id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen)), or `none` · required |
+| `--space <space>` | Target space (id, `name:<name>`, `self` (the space of the session you run in) or `current` (the space of the session on screen)), or `none` |
+| `--parent <parent>` | Parent session (selectors as for <session>), or `none` to make it top-level |
 
 **Returns:** `Session & {changed}`
+
+```bash
+ctrl session move ses_x --parent self
+ctrl session move ses_x --parent none
+ctrl session move ses_x --space name:reviews
+```
 
 ### session archive
 
@@ -932,6 +946,8 @@ ctrl events [--type <type>...] [--session <session>...]
   spaceID: string | null     // null = in no space
   archived: number | null    // archived at (ms); null = not archived
   createdByAgent: {agent: string, by: string | null, at: number} | null   // made by an agent with `session new`; by = its own session
+  parentID: string | null    // parent session (child sessions); can be in another space, or deleted
+  children: string[]         // ids of its direct child sessions, archived ones too
   status: "needs-input" | "running" | "failed" | "unread" | "idle"
   statusDetail?: string      // e.g. "Waiting for permission: bash"
   updated: number            // ms

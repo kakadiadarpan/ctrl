@@ -117,6 +117,8 @@ export type UiState = {
   skillPrompted?: boolean
   /** The "set up agents" toast (skills + ctrl command) was shown once already */
   agentsPrompted?: boolean
+  /** Sessions whose children are folded in the sidebar */
+  collapsedSessions?: string[]
   /** The welcome screen (pick a harness) was completed; Settings → About can show it again */
   onboarded?: boolean
 }
@@ -263,6 +265,8 @@ export type AppState = {
   archived: Record<string, number>
   /** sessionID → the agent that created it */
   createdByAgent: Record<string, AgentOrigin>
+  /** sessionID → parent sessionID (child sessions) */
+  parents: Record<string, string>
   sessions: SessionItem[]
   currentSessionID: string | null
   bridgeConnected: boolean
@@ -469,6 +473,10 @@ export type CtrlApi = {
   showSessionMenu(sessionID: string): Promise<void>
   moveSession(sessionID: string, spaceID: string | null): Promise<void>
   newSession(spaceID: string | null): Promise<void>
+  /** Makes it a child of parentID (and moves it into the parent's space); null detaches it */
+  setParent(sessionID: string, parentID: string | null): Promise<void>
+  /** New session under this one: same space, folder and harness */
+  newChildSession(parentID: string): Promise<void>
   openSession(sessionID: string): Promise<void>
   /** Full-text search over session messages */
   search(query: string): Promise<SearchResult>

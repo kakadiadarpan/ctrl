@@ -34,6 +34,7 @@ so ctrl keeps a process per open session and reads its files and terminal output
 | Archive / unarchive | ✅ | ✅ | ctrl-side; archiving also marks the session read |
 | Archived sessions open read-only | ✅ | ✅ | scrolling still works; Unarchive in the bar unlocks it |
 | Move between spaces, drag and drop | ✅ | ✅ | |
+| Child sessions (tree in the sidebar, `--parent`) | ✅ | ✅ | ctrl-side · fx: a new child gets its parent once fx reports its id |
 | ⌘1–9 jump, ⌘P title search | ✅ | ✅ | |
 | ⌘P message search | ✅ | ✅ | opencode: through the service · fx: tails `events.jsonl` |
 | Resources panel (links per session / space) | ✅ | ✅ | Same index as search |

@@ -661,7 +661,7 @@ export function Settings({
           </div>
           {showCtrlText && (
             <div className="setting-sub">
-              <textarea className="setting-textarea" readOnly value={CTRL_INSTRUCTIONS} rows={9} />
+              <textarea className="setting-textarea" readOnly value={CTRL_INSTRUCTIONS} rows={10} />
             </div>
           )}
         </div>
