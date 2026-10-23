@@ -88,6 +88,8 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
   /** Session a dragged session would become a child of */
   const [nestTarget, setNestTarget] = useState<string | null>(null)
   const draggingSession = useRef<string | null>(null)
+  /** Hover card for a parent link (native tooltips take a second and can't show structure) */
+  const [parentTip, setParentTip] = useState<{ title: string; space: string | null; archived: boolean; x: number; y: number } | null>(null)
   const draggingSpace = useRef<string | null>(null)
   const { width, handle } = useSidebarWidth(state.ui.sidebarWidth)
 
@@ -132,6 +134,30 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
     setNestTarget(null)
     draggingSpace.current = null
     draggingSession.current = null
+  }
+
+  /** Opens a session and shows it in the sidebar: unfolds its space and parents, scrolls to it, flashes it. */
+  const revealSession = async (id: string) => {
+    onOpen(id)
+    const spaceID = state.assignments[id]
+    if (state.spaces.find((s) => s.id === spaceID)?.collapsed) await window.ctrl.toggleSpace(spaceID)
+    const ancestors = new Set<string>()
+    for (let cur = state.parents[id]; cur && !ancestors.has(cur); cur = state.parents[cur]) ancestors.add(cur)
+    if ([...folded].some((f) => ancestors.has(f)))
+      await window.ctrl.setUi({ collapsedSessions: [...folded].filter((f) => !ancestors.has(f)) })
+    // The unfolded rows render once the new state arrives: look for the row for a few frames.
+    let tries = 30
+    const find = () => {
+      const el =
+        document.querySelector<HTMLElement>(`.space [data-session-id="${id}"]`) ??
+        document.querySelector<HTMLElement>(`.sidebar [data-session-id="${id}"]`)
+      if (!el) return void (tries-- > 0 && requestAnimationFrame(find))
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" })
+      el.classList.remove("flash")
+      void el.offsetWidth
+      el.classList.add("flash")
+    }
+    requestAnimationFrame(find)
   }
 
   /** Whether `id` is `ancestor` or sits somewhere under it. */
@@ -231,7 +257,7 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
     if (!p) return null
     const spaceID = state.assignments[id]
     const space = state.spaces.find((x) => x.id === spaceID)
-    return { session: p, where: space ? `in ${space.name}` : "in no space", archived: !!state.archived[id] }
+    return { session: p, where: space ? `in ${space.name}` : "in no space", space: space?.name ?? null, archived: !!state.archived[id] }
   }
 
   const parentText = (s: SessionItem) => {
@@ -302,10 +328,18 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
         {parentLink && (
           <button
             className="icon-btn parent-link"
-            title={`Child of "${parentLink.session.title}" (${parentLink.where}${parentLink.archived ? ", archived" : ""}). Click to open it`}
+            // Empty title: keeps the row's native tooltip from showing over the hover card.
+            title=""
+            aria-label={`Parent: ${parentLink.session.title}`}
+            onMouseEnter={(e) => {
+              const r = e.currentTarget.getBoundingClientRect()
+              setParentTip({ title: parentLink.session.title, space: parentLink.space, archived: parentLink.archived, x: r.left, y: r.bottom + 6 })
+            }}
+            onMouseLeave={() => setParentTip(null)}
             onClick={(e) => {
               e.stopPropagation()
-              onOpen(parentLink.session.id)
+              setParentTip(null)
+              void revealSession(parentLink.session.id)
             }}
             onDoubleClick={(e) => e.stopPropagation()}
           >
@@ -374,7 +408,7 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
         <span className="label">New chat</span>
       </button>
 
-      <div className="scroll">
+      <div className="scroll" onScroll={() => setParentTip(null)}>
         <Section
           title="Spaces"
           action={
@@ -446,6 +480,17 @@ export function Sidebar({ state, hints, onOpen, onNew, onSearch, onSettings, onT
       </div>
 
       {footer}
+
+      {parentTip && (
+        <div className="parent-tip" style={{ left: parentTip.x, top: parentTip.y }}>
+          <div className="parent-tip-label">Parent session</div>
+          <div className="parent-tip-title">{parentTip.title}</div>
+          <div className="parent-tip-meta">
+            {parentTip.space ? `In space “${parentTip.space}”` : "In no space"}
+            {parentTip.archived ? " · archived" : ""} · click to show it
+          </div>
+        </div>
+      )}
 
       {(state.problem || state.error) && (
         <div className={`sidebar-alert ${state.problem ? "problem" : "error"}`} role="alert">
