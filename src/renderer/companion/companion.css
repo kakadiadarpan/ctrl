@@ -27,14 +27,15 @@ body {
   flex: 1;
 }
 
-.companion-menu {
+.companion .companion-menu {
   flex-shrink: 0;
   color: var(--text);
   -webkit-app-region: no-drag;
 }
 
-.companion-menu .icon {
-  color: inherit;
+.companion .companion-menu .icon {
+  width: 16px;
+  height: 16px;
 }
 
 /* What's on screen (app, then the tab, channel or page), with a new session about it on the right. */
