@@ -10,7 +10,7 @@ const api: CompanionApi = {
   open: (id) => ipcRenderer.send("companion:open", id),
   newSession: () => ipcRenderer.send("companion:new"),
   resize: (height) => ipcRenderer.send("companion:resize", height),
-  close: () => ipcRenderer.send("companion:close"),
+  menu: () => ipcRenderer.send("companion:menu"),
   requestAccess: () => ipcRenderer.send("companion:access"),
 }
 

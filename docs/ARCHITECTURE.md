@@ -199,7 +199,7 @@ ctrl-context (Swift) ──JSON line on change──► Companion (main) ──v
 - **Own window:** an `NSPanel` (`type: "panel"`) at floating level on every Space. Clicking it doesn't
   activate ctrl, so the app you were in stays frontmost and its context stays on screen. When ctrl itself is
   frontmost, the helper keeps the last context.
-- **New session from screen:** the + button and the global shortcut (`globalShortcut`, registered only while
+- **New session from screen:** clicking the shortcut in the header and the global shortcut (`globalShortcut`, registered only while
   on, and paused while Settings records a shortcut) both call `host.newSession(url)`; main types the URL into
   a new chat without sending it.
 - The helper is built by `scripts/build.mjs` (universal, `swiftc`, only when its source changed) into

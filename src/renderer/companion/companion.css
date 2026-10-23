@@ -37,17 +37,34 @@ body {
   min-width: 0;
 }
 
+/* The new-session shortcut, clickable: shows how to do it from any app. */
 .companion-new {
   margin-left: auto;
+  flex-shrink: 0;
   -webkit-app-region: no-drag;
 }
 
-.companion-close {
-  opacity: 0;
+.companion-new kbd {
+  display: block;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--kbd);
+  background: var(--hover-strong);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
+.companion-new:hover kbd {
+  color: var(--text);
+}
+
+.companion-menu {
+  flex-shrink: 0;
+  opacity: 0.55;
   -webkit-app-region: no-drag;
 }
 
-.companion:hover .companion-close {
+.companion:hover .companion-menu {
   opacity: 1;
 }
 

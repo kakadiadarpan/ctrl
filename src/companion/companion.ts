@@ -1,6 +1,6 @@
 // The ctrl Companion: a small always-on-top window listing the sessions that mentioned what's on screen
-// (the PR in your browser, the Slack thread you're reading), and starting a new one about it (its + button
-// or a global shortcut). Off by default (Settings → ctrl Companion).
+// (the PR in your browser, the Slack thread you're reading), and starting a new one about it (click the
+// shortcut in its header, or press it from any app). Off by default (Settings → ctrl Companion).
 //
 //   ctrl-context (Swift, native/context.swift) ──JSON lines──► Companion ──view──► companion window
 //        └ frontmost app: browser tab URL, Slack/Notion/Linear via Accessibility
@@ -9,7 +9,7 @@
 // Everything lives here and in src/renderer/companion: main only creates it, turns it on and off, and
 // tells it when sessions or resources changed. While off, nothing runs (no process, no window, no shortcut).
 
-import { app, BrowserWindow, globalShortcut, ipcMain, nativeTheme, screen, shell, systemPreferences } from "electron"
+import { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeTheme, screen, shell, systemPreferences } from "electron"
 import { spawn, type ChildProcess } from "node:child_process"
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -35,7 +35,9 @@ export type CompanionHost = {
   newSession(text: string): void
   /** Bindings of the new-session shortcut (registered globally while on) */
   shortcuts(): string[]
-  /** The window's close button turns the setting off */
+  /** Brings ctrl's main window forward, on Settings if asked */
+  show(settings?: boolean): void
+  /** "Hide" in the window's menu turns the setting off */
   disable(): void
 }
 
@@ -65,7 +67,7 @@ export class Companion {
     ipcMain.on("companion:open", (_e, id: string) => this.host.open(id))
     ipcMain.on("companion:new", () => this.newSession())
     ipcMain.on("companion:resize", (_e, height: number) => this.resize(height))
-    ipcMain.on("companion:close", () => this.host.disable())
+    ipcMain.on("companion:menu", () => this.menu())
     ipcMain.on("companion:access", () => {
       systemPreferences.isTrustedAccessibilityClient(true)
       void shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
@@ -88,6 +90,23 @@ export class Companion {
       this.lastSent = ""
     }
     this.updateShortcuts()
+  }
+
+  private menu() {
+    const win = this.win
+    if (!win || win.isDestroyed()) return
+    Menu.buildFromTemplate([
+      {
+        label: "New session",
+        accelerator: this.host.shortcuts()[0],
+        registerAccelerator: false,
+        click: () => this.newSession(),
+      },
+      { label: "Open ctrl", click: () => this.host.show() },
+      { label: "Settings…", click: () => this.host.show(true) },
+      { type: "separator" },
+      { label: "Hide ctrl Companion", toolTip: "Turn it back on in Settings", click: () => this.host.disable() },
+    ]).popup({ window: win })
   }
 
   /** New session about what's on screen: its link typed in, so you can ask about it. */

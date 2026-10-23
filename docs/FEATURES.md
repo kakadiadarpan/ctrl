@@ -124,9 +124,9 @@ where it lives.
   (Chrome, Arc, Brave, Edge, Dia, Vivaldi, Safari), the Slack thread (side panel, or the one under the pointer
   on the Threads page) or channel, the Notion page, the Linear issue. A Slack channel also lists sessions that
   mentioned threads in it (marked with #). Click a row to open it in ctrl. Draggable, sized to its content,
-  remembers its position, stays on every Space; clicking it doesn't take focus from the app you're in. ×
-  turns it off (`src/companion/`, `src/renderer/companion/`)
-- New session from screen: the window's + button, or ⌃⌥⌘Space from any app (a global shortcut, registered only
+  remembers its position, stays on every Space; clicking it doesn't take focus from the app you're in. Its ⋯
+  menu: New session, Open ctrl, Settings…, Hide ctrl Companion (turns it off) (`src/companion/`, `src/renderer/companion/`)
+- New session from screen: the shortcut shown in the window's header (click it), or ⌃⌥⌘Space from any app (a global shortcut, registered only
   while the companion is on, rebindable in Settings → Shortcuts), brings ctrl forward on a new chat with the link
   on screen typed in, not sent (the first link ctrl recognizes, else the first one). opencode: its new-session
   screen; fx: a new session, typed in once fx is ready (`newSessionWith()` in `src/main/main.ts`)

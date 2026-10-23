@@ -41,14 +41,14 @@ export function Companion() {
         <span className="companion-app">{ctx?.app ?? "ctrl"}</span>
         {ctx?.label && <span className="companion-label">{ctx.label}</span>}
         <button
-          className="icon-btn companion-new"
-          title={[ctx?.label ? `New session about ${ctx.label}` : "New session", view?.shortcut].filter(Boolean).join("  ")}
+          className={view?.shortcut ? "companion-new" : "icon-btn companion-new"}
+          title={ctx?.label ? `New session about ${ctx.label}` : "New session"}
           onClick={() => window.companion.newSession()}
         >
-          <Icon name="plus" />
+          {view?.shortcut ? <kbd>{view.shortcut}</kbd> : <Icon name="plus" />}
         </button>
-        <button className="icon-btn companion-close" title="Turn off the ctrl Companion (Settings → ctrl Companion)" onClick={() => window.companion.close()}>
-          <Icon name="close" />
+        <button className="icon-btn companion-menu" title="More" onClick={() => window.companion.menu()}>
+          <Icon name="dots" />
         </button>
       </div>
       {view && !view.trusted && (

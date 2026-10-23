@@ -50,6 +50,7 @@ export type CompanionApi = {
   /** New session with what's on screen typed in */
   newSession(): void
   resize(height: number): void
-  close(): void
+  /** The ⋯ menu: new session, open ctrl, settings, hide */
+  menu(): void
   requestAccess(): void
 }

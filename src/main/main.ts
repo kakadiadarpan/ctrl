@@ -326,6 +326,10 @@ const companion = new Companion({
     void newSessionWith(text).catch(report)
   },
   shortcuts: () => bindings("companion-new-session", store.data.settings.shortcuts),
+  show: (settings) => {
+    raiseWindow()
+    if (settings) send("ui:settings", true)
+  },
   disable: () => applySettings({ companion: false }),
 })
 
