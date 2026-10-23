@@ -1,6 +1,6 @@
 // The ctrl Companion: a small always-on-top window listing the sessions that mentioned what's on screen
-// (the PR in your browser, the Slack thread you're reading), and starting a new one about it (click the
-// shortcut in its header, or press it from any app). Off by default (Settings → ctrl Companion).
+// (the PR in your browser, the Slack thread you're reading), and starting a new one about it (its New
+// session button, or a shortcut from any app). Off by default (Settings → ctrl Companion).
 //
 //   ctrl-context (Swift, native/context.swift) ──JSON lines──► Companion ──view──► companion window
 //        └ frontmost app: browser tab URL, Slack/Notion/Linear via Accessibility

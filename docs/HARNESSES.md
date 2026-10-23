@@ -40,7 +40,7 @@ so ctrl keeps a process per open session and reads its files and terminal output
 | Resources panel (links per session / space) | ✅ | ✅ | Same index as search |
 | Referenced sessions in Resources | ✅ | ✅ | fx references show once fx writes the turn to disk |
 | ctrl Companion (sessions that mentioned what's on screen) | ✅ | ✅ | Same index as search |
-| New session from screen (⌃⌥⌘Space, or click it in the companion) | ✅ | ✅ | opencode: new-session screen with the link typed in; fx: a new session, typed in once ready |
+| New session from screen (⌃⌥⌘Space, or the companion's New session button) | ✅ | ✅ | opencode: new-session screen with the link typed in; fx: a new session, typed in once ready |
 | Links and search updated during a turn | ⚠️ | ⚠️ | opencode: links in your prompt right away, the agent's at the end of the turn · fx: everything at the end of the turn, since fx only saves a turn (your prompt included) once it's done |
 | Rename | ✅ | ⚠️ | fx rewrites its title while it runs, so the rename is written once no fx process has the session |
 | Delete | ✅ | ✅ | fx: the session folder goes to the Trash |

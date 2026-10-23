@@ -22,50 +22,53 @@ body {
   -webkit-app-region: drag;
 }
 
-.companion-app {
+.companion-title {
   font-weight: 600;
-  flex-shrink: 0;
-}
-
-.companion-label {
-  color: var(--muted);
-  font-size: 12.5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   flex: 1;
-  min-width: 0;
-}
-
-/* The new-session shortcut, clickable: shows how to do it from any app. */
-.companion-new {
-  margin-left: auto;
-  flex-shrink: 0;
-  -webkit-app-region: no-drag;
-}
-
-.companion-new kbd {
-  display: block;
-  font: inherit;
-  font-size: 11.5px;
-  color: var(--kbd);
-  background: var(--hover-strong);
-  border-radius: 6px;
-  padding: 1px 6px;
-}
-
-.companion-new:hover kbd {
-  color: var(--text);
 }
 
 .companion-menu {
   flex-shrink: 0;
-  opacity: 0.55;
+  color: var(--text);
   -webkit-app-region: no-drag;
 }
 
-.companion:hover .companion-menu {
-  opacity: 1;
+.companion-menu .icon {
+  color: inherit;
+}
+
+/* What's on screen (app, then the tab, channel or page), with a new session about it on the right. */
+.companion-context {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+  padding: 7px 8px 7px 10px;
+  border-radius: 8px;
+  background: var(--hover);
+}
+
+.companion-context-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.companion-app {
+  font-weight: 600;
+  font-size: 12.5px;
+}
+
+.companion-label {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.companion-new {
+  padding: 3px 9px;
+  font-size: 12px;
 }
 
 .companion-access {
@@ -97,6 +100,7 @@ body {
 }
 
 .companion-header + .section,
+.companion-context + .section,
 .companion-access + .section {
   margin-top: 2px;
 }

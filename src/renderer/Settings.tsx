@@ -778,8 +778,8 @@ export function Settings({
               <div className="setting-desc">
                 A small window that stays on top and lists the sessions that mentioned what you're looking at: the PR
                 or issue in your browser, the Slack thread or channel, the Notion page. Press{" "}
-                {shortcutLabel("companion-new-session", settings.shortcuts) || "its shortcut"} from any app (or click it
-                in the window) to start a new session with that link typed in. Reading Slack, Notion and Linear needs Accessibility access,
+                {shortcutLabel("companion-new-session", settings.shortcuts) || "its shortcut"} from any app (or click New
+                session in the window) to start a new session with that link typed in. Reading Slack, Notion and Linear needs Accessibility access,
                 browsers ask for permission to read their tab.
               </div>
             </div>
