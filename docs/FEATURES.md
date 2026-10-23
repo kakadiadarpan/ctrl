@@ -127,7 +127,7 @@ where it lives.
   remembers its position, stays on every Space; clicking it doesn't take focus from the app you're in. Its ⋯
   menu: New session, Open ctrl, Settings…, Hide ctrl Companion (turns it off) (`src/companion/`, `src/renderer/companion/`)
 - The header reads ctrl; below it, a row for what's on screen (the app, then the tab, channel or page) with
-  a "+ New" button
+  a "New" button
 - New session from screen: that button (tooltip: the shortcut), or ⌃⌥⌘Space from any app (a global shortcut, registered only
   while the companion is on, rebindable in Settings → Shortcuts), brings ctrl forward on a new chat with the link
   on screen typed in, not sent (the first link ctrl recognizes, else the first one). opencode: its new-session

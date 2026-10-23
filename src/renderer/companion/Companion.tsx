@@ -54,7 +54,7 @@ export function Companion() {
             title={[ctx.label ? `New session about ${ctx.label}` : "New session", view?.shortcut].filter(Boolean).join("  ")}
             onClick={() => window.companion.newSession()}
           >
-            <Icon name="plus" />
+            <Icon name="compose" />
             New
           </button>
         </div>
