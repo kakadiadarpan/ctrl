@@ -171,7 +171,7 @@ export function App() {
           void create(null)
         }
         // Main creates the session; just get out of the way.
-        if (name === "new-session-here") {
+        if (name === "new-session-here" || name === "companion-new-session") {
           setPalette(false)
           setSettings(false)
           setSpaceSettingsID(null)

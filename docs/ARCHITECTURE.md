@@ -168,9 +168,9 @@ adapter = { id, name, types[], live? }
 - **Same pipeline as search:** mentions are written in the same transaction as their message and deleted with it.
   Like search, only your prompts and the assistant's text are read, not tool output.
 
-## Companion
+## ctrl Companion
 
-Settings → Companion opens a small always-on-top window listing the sessions that mentioned what's on screen.
+Settings → ctrl Companion opens a small always-on-top window listing the sessions that mentioned what's on screen.
 It's a module of its own: `src/companion/` (main side, helper, preload) and `src/renderer/companion/` (its page).
 Main only creates it, turns it on and off, and calls `changed()` when sessions or resources change.
 
@@ -199,6 +199,9 @@ ctrl-context (Swift) ──JSON line on change──► Companion (main) ──v
 - **Own window:** an `NSPanel` (`type: "panel"`) at floating level on every Space. Clicking it doesn't
   activate ctrl, so the app you were in stays frontmost and its context stays on screen. When ctrl itself is
   frontmost, the helper keeps the last context.
+- **New session from screen:** the New button and the global shortcut (`globalShortcut`, registered only while
+  on, and paused while Settings records a shortcut) both call `host.newSession(url)`; main types the URL into
+  a new chat without sending it.
 - The helper is built by `scripts/build.mjs` (universal, `swiftc`, only when its source changed) into
   `dist/companion/` and shipped in `Contents/Resources/companion`. `ctrl-context --once --debug` prints what
   it sees in the frontmost app after 3s (`--app <bundle id>` reads a background app, without hover).

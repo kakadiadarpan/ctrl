@@ -38,12 +38,27 @@ export function Companion() {
   return (
     <div className="companion" ref={root}>
       <div className="companion-header">
-        <span className="companion-app">{ctx?.app ?? "ctrl"}</span>
-        {ctx?.label && <span className="companion-label">{ctx.label}</span>}
-        <button className="icon-btn companion-close" title="Turn off the companion (Settings → Companion)" onClick={() => window.companion.close()}>
-          <Icon name="close" />
+        <span className="companion-title">ctrl</span>
+        <button className="icon-btn companion-menu" title="More" onClick={() => window.companion.menu()}>
+          <Icon name="dots" />
         </button>
       </div>
+      {ctx && (
+        <div className="companion-context">
+          <div className="companion-context-text">
+            <div className="companion-app">{ctx.app}</div>
+            {ctx.label && <div className="companion-label">{ctx.label}</div>}
+          </div>
+          <button
+            className="btn companion-new"
+            title={[ctx.label ? `New session about ${ctx.label}` : "New session", view?.shortcut].filter(Boolean).join("  ")}
+            onClick={() => window.companion.newSession()}
+          >
+            <Icon name="compose" />
+            New
+          </button>
+        </div>
+      )}
       {view && !view.trusted && (
         <button className="companion-access" onClick={() => window.companion.requestAccess()}>
           <Icon name="alert" />

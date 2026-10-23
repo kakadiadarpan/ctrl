@@ -30,6 +30,8 @@ export type CompanionView = {
     /** The resource it recognized, e.g. "acme/web#123"; none when nothing on screen is a link ctrl knows */
     resource?: string
   } | null
+  /** The new-session shortcut, formatted ("⌃⌥⌘Space"); "" when unbound */
+  shortcut: string
   /** Matching sessions grouped like the sidebar: by space, then Recents (no space), then Archived */
   groups: CompanionGroup[]
 }
@@ -45,7 +47,10 @@ export type CompanionGroup = {
 export type CompanionApi = {
   onView(cb: (view: CompanionView) => void): () => void
   open(sessionID: string): void
+  /** New session with what's on screen typed in */
+  newSession(): void
   resize(height: number): void
-  close(): void
+  /** The ⋯ menu: new session, open ctrl, settings, hide */
+  menu(): void
   requestAccess(): void
 }

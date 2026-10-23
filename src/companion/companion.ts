@@ -1,20 +1,23 @@
-// The companion: a small always-on-top window listing the sessions that mentioned what's on screen
-// (the PR in your browser, the Slack thread you're reading). Off by default (Settings → Companion).
+// The ctrl Companion: a small always-on-top window listing the sessions that mentioned what's on screen
+// (the PR in your browser, the Slack thread you're reading), and starting a new one about it (its New
+// button, or a shortcut from any app). Off by default (Settings → ctrl Companion).
 //
 //   ctrl-context (Swift, native/context.swift) ──JSON lines──► Companion ──view──► companion window
 //        └ frontmost app: browser tab URL, Slack/Notion/Linear via Accessibility
 //   Companion: URLs → resource keys (shared adapters) → search.db mentions → sessions
 //
 // Everything lives here and in src/renderer/companion: main only creates it, turns it on and off, and
-// tells it when sessions or resources changed. While off, nothing runs (no process, no window).
+// tells it when sessions or resources changed. While off, nothing runs (no process, no window, no shortcut).
 
-import { app, BrowserWindow, ipcMain, nativeTheme, screen, shell, systemPreferences } from "electron"
+import { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeTheme, screen, shell, systemPreferences } from "electron"
 import { spawn, type ChildProcess } from "node:child_process"
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { createInterface } from "node:readline"
 import type { SessionItem } from "../shared/types"
 import type { SessionMention } from "../main/search-db"
+import { parseResourceUrl } from "../shared/adapters"
+import { formatAccel } from "../shared/shortcuts"
 import { lookupFor, relatedName } from "./match"
 import type { CompanionGroup, CompanionSession, CompanionView, ProbeMessage } from "./types"
 
@@ -28,7 +31,13 @@ export type CompanionHost = {
   sessionsMentioning(ids: string[], prefixes: string[]): { exact: SessionMention[]; related: SessionMention[] }
   /** Brings ctrl's main window forward on that session */
   open(sessionID: string): void
-  /** The window's close button turns the setting off */
+  /** Brings ctrl's main window forward on a new session, with `text` typed in (not sent) */
+  newSession(text: string): void
+  /** Bindings of the new-session shortcut (registered globally while on) */
+  shortcuts(): string[]
+  /** Brings ctrl's main window forward, on Settings if asked */
+  show(settings?: boolean): void
+  /** "Hide" in the window's menu turns the setting off */
   disable(): void
 }
 
@@ -50,12 +59,15 @@ export class Companion {
   private lastSent = ""
   private timer?: ReturnType<typeof setTimeout>
   private restarts = 0
+  private registered: string[] = []
+  private shortcutsPaused = false
   private readonly savedPath = join(app.getPath("userData"), "companion.json")
 
   constructor(private host: CompanionHost) {
     ipcMain.on("companion:open", (_e, id: string) => this.host.open(id))
+    ipcMain.on("companion:new", () => this.newSession())
     ipcMain.on("companion:resize", (_e, height: number) => this.resize(height))
-    ipcMain.on("companion:close", () => this.host.disable())
+    ipcMain.on("companion:menu", () => this.menu())
     ipcMain.on("companion:access", () => {
       systemPreferences.isTrustedAccessibilityClient(true)
       void shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
@@ -71,11 +83,70 @@ export class Companion {
       this.startProbe()
     } else {
       this.stopProbe()
+      this.unregisterShortcuts()
       this.win?.destroy()
       this.win = undefined
       this.context = null
       this.lastSent = ""
     }
+    this.updateShortcuts()
+  }
+
+  private menu() {
+    const win = this.win
+    if (!win || win.isDestroyed()) return
+    Menu.buildFromTemplate([
+      {
+        label: "New session",
+        accelerator: this.host.shortcuts()[0],
+        registerAccelerator: false,
+        click: () => this.newSession(),
+      },
+      { label: "Open ctrl", click: () => this.host.show() },
+      { label: "Settings…", click: () => this.host.show(true) },
+      { type: "separator" },
+      { label: "Hide ctrl Companion", toolTip: "Turn it back on in Settings", click: () => this.host.disable() },
+    ]).popup({ window: win })
+  }
+
+  /** New session about what's on screen: its link typed in, so you can ask about it. */
+  newSession() {
+    this.host.newSession(this.contextUrl())
+  }
+
+  /** The link for what's on screen: the first one ctrl recognizes, else the first one; "" without one. */
+  contextUrl(): string {
+    const urls = this.context?.urls ?? []
+    return urls.find((u) => parseResourceUrl(u)) ?? urls[0] ?? ""
+  }
+
+  /** Settings changed: (re)register the global shortcut with the current bindings. */
+  updateShortcuts() {
+    if (!this.enabled || this.shortcutsPaused) return this.unregisterShortcuts()
+    const wanted = this.host.shortcuts()
+    if (wanted.join("\n") === this.registered.join("\n")) return
+    this.unregisterShortcuts()
+    for (const accel of wanted) {
+      try {
+        if (globalShortcut.register(accel, () => this.newSession())) this.registered.push(accel)
+        else console.error(`[ctrl] companion: ${accel} is taken by another app`)
+      } catch (e) {
+        console.error(`[ctrl] companion: can't register ${accel}: ${e}`)
+      }
+    }
+    this.lastSent = ""
+    this.render()
+  }
+
+  /** While a shortcut is being recorded in Settings, the keys go to the recorder instead. */
+  pauseShortcuts(paused: boolean) {
+    this.shortcutsPaused = paused
+    this.updateShortcuts()
+  }
+
+  private unregisterShortcuts() {
+    for (const accel of this.registered) globalShortcut.unregister(accel)
+    this.registered = []
   }
 
   /** Sessions or resources changed somewhere: refresh the list soon (coalesced). */
@@ -89,6 +160,7 @@ export class Companion {
 
   dispose() {
     this.enabled = false
+    this.unregisterShortcuts()
     this.stopProbe()
   }
 
@@ -137,9 +209,11 @@ export class Companion {
 
   private compute(): CompanionView {
     const ctx = this.context
-    if (!ctx) return { trusted: this.trusted, context: null, groups: [] }
+    const first = this.host.shortcuts()[0]
+    const shortcut = first ? formatAccel(first) : ""
+    if (!ctx) return { trusted: this.trusted, context: null, shortcut, groups: [] }
     const lookup = lookupFor(ctx.urls)
-    const first = lookup.exact[0]
+    const top = lookup.exact[0]
     const mentions = this.host.sessionsMentioning(lookup.exact, lookup.related)
     const byID = new Map(this.host.sessions().map((s) => [s.id, s]))
     const rows = new Map<string, CompanionSession>()
@@ -154,7 +228,7 @@ export class Companion {
         archived: this.host.isArchived(s.id),
         last: m.last,
         via: lookup.names.get(m.resource_id) ?? relatedName(m.resource_id),
-        exact: m.resource_id === first,
+        exact: m.resource_id === top,
       })
     }
     // Archived ones have their own budget: they're folded by default and shouldn't crowd out live ones.
@@ -176,10 +250,11 @@ export class Companion {
       groups.get(group.id)!.sessions.push(s)
     }
     const rank = { space: 0, recents: 1, archived: 2 }
-    const resource = first && lookup.names.get(first)
+    const resource = top && lookup.names.get(top)
     return {
       trusted: this.trusted,
       context: { app: ctx.app, label: ctx.label || resource || ctx.title || undefined, resource },
+      shortcut,
       groups: [...groups.values()].sort((a, b) => rank[a.kind] - rank[b.kind]),
     }
   }

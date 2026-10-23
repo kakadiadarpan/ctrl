@@ -69,7 +69,7 @@ export const SETTING_KEYS: SettingKey[] = [
   {
     key: "companion",
     type: { kind: "bool" },
-    description: "Always-on-top window listing the sessions that mentioned what's on screen (browser tab, Slack thread, Notion page)",
+    description: "ctrl Companion: always-on-top window listing the sessions that mentioned what's on screen (browser tab, Slack thread, Notion page), with a global shortcut for a new session about it",
   },
   {
     key: "adapterModes.<adapter>",
