@@ -516,7 +516,7 @@ export const COMMANDS: CommandSpec[] = [
     summary: "What's on screen: current session, terminal, panels, window",
     args: [],
     returns:
-      "{currentSessionID, activeTerminal, sidebarWidth, resources:{open,scope,width}, recentsCollapsed, archivedCollapsed, window:{visible,focused}}",
+      "{currentSessionID, activeTerminal, sidebarWidth, resources:{open,collapsed,scope,width}, recentsCollapsed, archivedCollapsed, window:{visible,focused}}",
   },
   {
     name: "ui home",

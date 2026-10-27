@@ -989,7 +989,7 @@ export function createHandlers(host: CliHost, { sessionNewBudget = SESSION_NEW_B
         currentSessionID: host.currentSessionID(),
         activeTerminal: host.activeTermID(),
         sidebarWidth: ui.sidebarWidth,
-        resources: { open: ui.resourcesOpen, scope: ui.resourcesScope, width: ui.resourcesWidth },
+        resources: { open: ui.resourcesOpen, collapsed: ui.resourcesCollapsed, scope: ui.resourcesScope, width: ui.resourcesWidth },
         recentsCollapsed: ui.recentsCollapsed,
         archivedCollapsed: ui.archivedCollapsed,
         window: host.window(),

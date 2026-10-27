@@ -68,10 +68,20 @@ export function ResourcesPanel({ state, onClose }: { state: AppState; onClose():
     [items],
   )
 
+  const collapsed = state.ui.resourcesCollapsed
+
   return (
-    <aside className="resources">
+    <aside className={`resources${collapsed ? " collapsed" : ""}`}>
       <div className="resources-header">
-        <span>Resources</span>
+        <button
+          className="resources-toggle"
+          title={collapsed ? "Expand" : "Collapse"}
+          onClick={() => void window.ctrl.setUi({ resourcesCollapsed: !collapsed })}
+        >
+          <Icon name={collapsed ? "chevron-right" : "chevron-down"} />
+          <span>Resources</span>
+          {collapsed && items.length > 0 && <span className="count">{items.length}</span>}
+        </button>
         <button className="icon-btn" title="Close" onClick={onClose}>
           <Icon name="close" />
         </button>
